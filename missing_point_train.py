@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 from ase.db import connect
 import tensorfieldnetworks.layers as layers
 import tensorfieldnetworks.utils as utils
@@ -15,7 +16,7 @@ def atom_type_to_one_hot(atom_numbers, atom_order):
 
 training_set_size = 1000
 
-with connect('qm9.db') as conn:
+with connect('gdb9.db') as conn:
     qm9_coords = []
     qm9_atoms = []
     qm9_test_coords = []
@@ -36,30 +37,35 @@ qm9_test_one_hot = list(map(lambda x: atom_type_to_one_hot(x, atom_order), qm9_t
 # BUILD NETWORK
 print("Building graph.")
 
-# radial basis functions
-rbf_low = 0.
-rbf_high = 2.5
-rbf_count = 4
-rbf_spacing = (rbf_high - rbf_low) / rbf_count
-centers = tf.cast(tf.lin_space(rbf_low, rbf_high, rbf_count), FLOAT_TYPE)
-
 # r : [N, 3]
-r = tf.placeholder(FLOAT_TYPE, shape=(None, 3))
+r = tf.placeholder(FLOAT_TYPE, shape=(None, 3), name='cartesians')
 
 # one_hot : [N, num_atom_types]
-one_hot = tf.placeholder(FLOAT_TYPE, shape=(None, num_atom_types))
+one_hot = tf.placeholder(FLOAT_TYPE, shape=(None, num_atom_types), name='atomic_nums')
 
 # [N, N, 3]
-rij = utils.difference_matrix(r)
+with tf.variable_scope(None, 'difference_matrix'):
+    rij = utils.difference_matrix(r)
 
 # [N, N, 3]
-unit_vectors = rij / tf.expand_dims(tf.norm(rij, axis=-1) + EPSILON, axis=-1)
+with tf.variable_scope(None, 'unit_vectors'):
+    unit_vectors = rij / tf.expand_dims(tf.norm(rij, axis=-1) + EPSILON, axis=-1)
 
-dij = utils.distance_matrix(r)
+with tf.variable_scope(None, 'distance_matrix'):
+    dij = utils.distance_matrix(r)
 
 # rbf : [N, N, rbf_count]
-gamma = 1. / rbf_spacing
-rbf = tf.exp(-gamma * tf.square(tf.expand_dims(dij, axis=-1) - centers))
+with tf.variable_scope(None, 'radial_basis_fxns'):
+
+    # radial basis functions
+    rbf_low = 0.
+    rbf_high = 2.5
+    rbf_count = 4
+    rbf_spacing = (rbf_high - rbf_low) / rbf_count
+    centers = tf.cast(tf.lin_space(rbf_low, rbf_high, rbf_count), FLOAT_TYPE)
+
+    gamma = 1. / rbf_spacing
+    rbf = tf.exp(-gamma * tf.square(tf.expand_dims(dij, axis=-1) - centers))
 
 layer_dims = [15, 15, 15, 1]
 
@@ -89,43 +95,65 @@ missing_coordinates = input_tensor_list[1][0]
 atom_type_scalars = atom_type_list[0][0]
 
 # [N]
-p = tf.nn.softmax(tf.squeeze(probabilty_scalars))
+with tf.name_scope('soft_max'):
+    p = tf.nn.softmax(tf.squeeze(probabilty_scalars))
 
 # [N, 3] when layer3_dim == 1
-output = tf.squeeze(missing_coordinates)
+with tf.name_scope('output'):
+    output = tf.squeeze(missing_coordinates)
 
 # votes : [N, 3]
-votes = r + output
+with tf.name_scope('votes'):
+    votes = r + output
 
 # guess_coord : [3]
-guess_coord = tf.tensordot(p, votes, [[0], [0]])
+with tf.name_scope('guess_coord'):
+    guess_coord = tf.tensordot(p, votes, [[0], [0]])
 
 # guess_atom : [num_atom_types
-guess_atom = tf.tensordot(p, tf.squeeze(atom_type_scalars), [[0], [0]])
+with tf.name_scope('guess_atom'):
+    guess_atom = tf.tensordot(p, tf.squeeze(atom_type_scalars), [[0], [0]])
 
 # missing_point : [3]
-missing_point = tf.placeholder(FLOAT_TYPE, shape=(3))
-missing_atom_type = tf.placeholder(FLOAT_TYPE, shape=(num_atom_types))
+missing_point = tf.placeholder(FLOAT_TYPE, shape=(3), name='missing_point')
+missing_atom_type = tf.placeholder(FLOAT_TYPE, shape=(num_atom_types), name='missing_atom_type')
 
 # loss : []
-loss = tf.nn.l2_loss(missing_point - guess_coord)
-loss += tf.nn.l2_loss(missing_atom_type - guess_atom)
+with tf.name_scope('loss'):
+    loss = tf.nn.l2_loss(missing_point - guess_coord)
+    loss += tf.nn.l2_loss(missing_atom_type - guess_atom)
 
-global_step = tf.Variable(0, trainable=False)
-starter_learning_rate = 1.e-3
-step_learning_rate = 1000
-decay_factor = 0.3
-learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                           training_set_size*step_learning_rate, decay_factor, staircase=True)
+tf.summary.scalar('MSE', loss)
+
+with tf.name_scope('learning_rate_crap'):
+    global_step = tf.Variable(0, trainable=False, name='global_step')
+    starter_learning_rate = 1.e-3
+    step_learning_rate = 1000
+    decay_factor = 0.3
+
+    learning_rate = tf.train.exponential_decay(
+        starter_learning_rate,
+        global_step,
+        training_set_size*step_learning_rate,
+        decay_factor,
+        staircase=True,
+        name='learning_rate_decay'
+    )
 
 optim = tf.train.AdamOptimizer(learning_rate)
-
 train_op = optim.minimize(loss, global_step=global_step)
 
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
+
+# sess = tf_debug.TensorBoardDebugWrapperSession(sess, 'OPTIPLEX-Pearson06:6006')
+
+merged = tf.summary.merge_all()
+train_writer = tf.summary.FileWriter('./tfn_train_logs', sess.graph)
+test_writer = tf.summary.FileWriter('./tfn_test_logs', sess.graph)
+
 saver = tf.train.Saver(max_to_keep=None)
-#saver.restore(sess, "missing_point_checkpoints/qm9_model_200.ckpt")
+# saver.restore(sess, "missing_point_checkpoints/qm9_model_200.ckpt")
 
 epochs = 1000
 print_freq = 25
@@ -153,12 +181,13 @@ for epoch in range(epochs):
                 new_types = np.delete(types, remove_index, 0)
                 removed_point = shape[remove_index]
                 removed_types = types[remove_index]
-                loss_value, guess_point, guess_type, votes_points, probs = sess.run(
-                    [loss, guess_coord, guess_atom, votes, p],
+                summary, loss_value, guess_point, guess_type, votes_points, probs = sess.run(
+                    [merged, loss, guess_coord, guess_atom, votes, p],
                     feed_dict={r: new_shape,
                                missing_point: removed_point,
                                missing_atom_type: removed_types,
                                one_hot: new_types})
+                train_writer.add_summary(summary, epoch)
                 loss_sum += loss_value
         print("train", epoch, np.sqrt(2 * loss_sum / np.sum(list(map(len, qm9_coords)))))
 
@@ -176,6 +205,7 @@ for epoch in range(epochs):
                                missing_point: removed_point,
                                missing_atom_type: removed_types,
                                one_hot: new_types})
+
                 loss_sum += loss_value
         print("test", epoch, np.sqrt(2 * loss_sum / np.sum(list(map(len, qm9_test_coords)))))
 

@@ -2,7 +2,7 @@ from math import sqrt
 import tensorflow as tf
 import numpy as np
 from tensorfieldnetworks import utils
-from utils import FLOAT_TYPE, EPSILON
+from tensorfieldnetworks.utils import FLOAT_TYPE, EPSILON
 
 # Layers for 3D rotation-equivariant network.
 
@@ -19,11 +19,17 @@ def R(inputs, nonlin=tf.nn.relu, hidden_dim=None, output_dim=1, weights_initiali
 
         w1 = tf.get_variable('weights1', [hidden_dim, input_dim], dtype=FLOAT_TYPE,
                              initializer=weights_initializer)
+        variable_summaries(w1)  # Watch radial_weights_1
+
         b1 = tf.get_variable('biases1', [hidden_dim], dtype=FLOAT_TYPE, initializer=biases_initializer)
+        variable_summaries(b1)  # Watch radial_biases_1
 
         w2 = tf.get_variable('weights2', [output_dim, hidden_dim], dtype=FLOAT_TYPE,
                              initializer=weights_initializer)
+        variable_summaries(w2)  # Watch radial_biases_2
+
         b2 = tf.get_variable('biases2', [output_dim], dtype=FLOAT_TYPE, initializer=biases_initializer)
+        variable_summaries(b2)  # Watch radial_biases_2
 
         hidden_layer = nonlin(b1 + tf.tensordot(inputs, w1, [[2], [1]]))
         radial = b2 + tf.tensordot(hidden_layer, w2, [[2], [1]])
@@ -322,3 +328,21 @@ def concatenation(input_tensor_list):
             # [N, channels, M]
             output_tensor_list[key].append(tf.concat(input_tensor_list[key], axis=-2))
     return output_tensor_list
+
+
+# Added Tensorboard Stuff -- Riley's Stuff!
+
+def variable_summaries(var):
+    """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+
+        tf.summary.scalar('stddev', stddev)
+        tf.summary.scalar('max', tf.reduce_max(var))
+        tf.summary.scalar('min', tf.reduce_min(var))
+        tf.summary.histogram('histogram', var)
