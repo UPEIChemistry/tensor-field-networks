@@ -3,9 +3,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python import debug as tf_debug
 from ase.db import connect
-import tensorfieldnetworks.layers as layers
-import tensorfieldnetworks.utils as utils
-from tensorfieldnetworks.utils import EPSILON, FLOAT_TYPE
+import original_code.tensorfieldnetworks.layers as layers
+import original_code.tensorfieldnetworks.utils as utils
+from original_code.tensorfieldnetworks.utils import EPSILON, FLOAT_TYPE
 
 
 def atom_type_to_one_hot(atom_numbers, atom_order):
@@ -82,7 +82,7 @@ for layer in range(num_layers):
     with tf.variable_scope(None, 'layer' + str(layer), values=[input_tensor_list]):
         input_tensor_list = layers.convolution(input_tensor_list, rbf, unit_vectors)
         input_tensor_list = layers.concatenation(input_tensor_list)
-        if layer == num_layers - 1:
+        if layer == num_layers - 1:  # This is only created for the final layer?
             with tf.variable_scope(None, 'atom_types', values=[input_tensor_list[0]]):
                 atom_type_list = layers.self_interaction({0: input_tensor_list[0]}, num_atom_types)
         input_tensor_list = layers.self_interaction(input_tensor_list, layer_dim)
@@ -152,7 +152,7 @@ merged = tf.summary.merge_all()
 train_writer = tf.summary.FileWriter('./tfn_train_logs', sess.graph)
 test_writer = tf.summary.FileWriter('./tfn_test_logs', sess.graph)
 
-saver = tf.train.Saver(max_to_keep=None)
+# saver = tf.train.Saver(max_to_keep=None)
 # saver.restore(sess, "missing_point_checkpoints/qm9_model_200.ckpt")
 
 epochs = 1000

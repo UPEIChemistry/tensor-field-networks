@@ -1,8 +1,8 @@
 from math import sqrt
 import tensorflow as tf
 import numpy as np
-from tensorfieldnetworks import utils
-from tensorfieldnetworks.utils import FLOAT_TYPE, EPSILON
+from original_code.tensorfieldnetworks import utils
+from original_code.tensorfieldnetworks.utils import FLOAT_TYPE, EPSILON
 
 # Layers for 3D rotation-equivariant network.
 
