@@ -221,10 +221,10 @@ class SelfInteraction(RotationallyEquivariantLayer):
 
     @staticmethod
     def self_interaction(tensor, w, b=0):
-        return K.permute_dimensions(
-            K.transpose(support_layers.EinSum('afi,gf->aig')(tensor, w) + b),
-            pattern=[0, 2, 1]
-        )
+        ein_sum = support_layers.EinSum('bafi,gf->baig')([tensor, w])
+        combination = ein_sum + b
+        transposed = K.transpose(combination)
+        return K.permute_dimensions(transposed, pattern=[0, 2, 1])  # FIXME: May cause issues with batch dim...
 
 
 class Nonlinearity(RotationallyEquivariantLayer):

@@ -177,9 +177,6 @@ class L2SphericalHarmonic(Layer):
 class EinSum(Lambda):
 
     def __init__(self, equation, **kwargs):
-        super().__init__(None, **kwargs)
-        self.function = partial(tf.einsum, equation)
-
-    def call(self, *inputs, mask=None):  # TODO: Overriding this method may cause problems...
-        arguments = self.arguments
-        return self.function(*inputs, **arguments)
+        def einsum(inputs):
+            return tf.einsum(equation, *inputs)
+        super().__init__(einsum, **kwargs)
