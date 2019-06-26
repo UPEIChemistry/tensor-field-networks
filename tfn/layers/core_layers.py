@@ -6,7 +6,28 @@ from . import support_layers
 from .. import utils
 
 
-class Convolution(Layer):
+class RotationallyEquivariantLayer(Layer):
+
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.weight_dict = {}
+
+    def add_weight_to_nested_dict(self, indices, *args, **kwargs):
+
+        def add_to_dict(current_dict, _indices):
+
+            if len(_indices) > 1:
+                new_dict = current_dict.setdefault(_indices.pop(0), {})
+                add_to_dict(new_dict, _indices)
+            else:
+                current_dict[_indices[0]] = self.add_weight(*args, **kwargs)
+
+        indices = list(indices)
+        add_to_dict(self.weight_dict, indices)
+
+
+class Convolution(RotationallyEquivariantLayer):
     """
     hidden_dim: int. Defaults to input_shape[-1]. Radial fxn is a 2 layer dense-net based off of
     RBF inputs of molecules
@@ -60,7 +81,6 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
         if bias_initializer is None:
             bias_initializer = constant()
         self.bias_initializer = bias_initializer
-        self.weight_dict = {}
 
     @utils.wrap_shape_dict
     def build(self, input_shape):
@@ -68,60 +88,28 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
             for i, shape in enumerate(shapes):
                 # 4 is for 2 weights/biases for 2 filters, so 4 weight/bias pairs per input
                 for n in range(4):  # TODO: Change this number if supporting more filters
-                    weight = 'ConvKernel_RO{}_I{}_FW{}'.format(n + 1, key, i)
-                    bias = 'ConvBias_RO{}_I{}_FW{}'.format(n + 1, key, i)
+                    wname = 'ConvKernel_RO{}_I{}_FW{}'.format(n + 1, key, i)
+                    bname = 'ConvBias_RO{}_I{}_FW{}'.format(n + 1, key, i)
                     if self.hidden_dim is None:
                         self.hidden_dim = shape[-1]
                     if (n + 1) % 2 == 0:
-                        self._add_weight_to_dict(
-                            weight,
-                            shape=(self.hidden_dim, self.output_dim),
-                            d='kernel',
-                            ro=key,
-                            num=i,
-                            filt=n
-                        )
-                        if self.use_bias:
-                            self._add_weight_to_dict(
-                                bias,
-                                shape=(self.output_dim, ),
-                                d='bias',
-                                ro=key,
-                                num=i,
-                                filt=n
-                            )
+                        wshape = (self.hidden_dim, self.output_dim)
+                        bshape = (self.output_dim, )
                     else:
-                        self._add_weight_to_dict(
-                            weight,
-                            shape=(shape[-1], self.hidden_dim),
-                            d='kernel',
-                            ro=key,
-                            num=i,
-                            filt=n
-                        )
-                        if self.use_bias:
-                            self._add_weight_to_dict(
-                                bias,
-                                shape=(self.hidden_dim, ),
-                                d='bias',
-                                ro=key,
-                                num=i,
-                                filt=n
-                            )
-
-    def _add_weight_to_dict(self,
-                            name,
-                            shape,
-                            d,
-                            ro,
-                            num,
-                            filt):
-        if 'Kernel' in name:
-            initializer = self.weight_initializer
-        else:
-            initializer = self.bias_initializer
-        w = self.add_weight(name=name,shape=shape,initializer=initializer)
-        self.weight_dict[d][ro][num][filt] = w  # FIXME: I have a feeling this will break...
+                        wshape = (shape[-1], self.hidden_dim)
+                        bshape = (self.hidden_dim, )
+                    self.add_weight_to_nested_dict(['kernel', key, i, n],
+                                                   name=wname,
+                                                   shape=wshape,
+                                                   initializer=self.weight_initializer
+                                                   )
+                    if self.use_bias:
+                        self.add_weight_to_nested_dict(['bias', key, i, n],
+                                                       name=bname,
+                                                       shape=bshape,
+                                                       initializer=self.bias_initializer
+                                                       )
+        self.built = True
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
@@ -170,7 +158,7 @@ class Concatenation(Layer):
         return output_tensors
 
 
-class SelfInteraction(Layer):
+class SelfInteraction(RotationallyEquivariantLayer):
 
     def __init__(self,
                  output_dim,
@@ -194,28 +182,21 @@ class SelfInteraction(Layer):
         for (key, shapes) in input_shape.items():
             for i, shape in enumerate(shapes):
                 wname = 'SIKernel_RO{}_I{}'.format(str(key), str(i))
+                wshape = (self.output_dim, shape[-2])
                 bname = 'SIBias_RO{}_I{}'.format(str(key), str(i))
-                self._add_weight_to_dict(name=wname, shape=[self.output_dim, shape[-2]], d='kernel', ro=key, num=i)
+                bshape = (self.output_dim, )
+                self.add_weight_to_nested_dict(['kernel', key, i],
+                                               wname,
+                                               wshape,
+                                               initializer=self.weight_initializer
+                                               )
                 if self.use_bias and key == 0:
-                    self._add_weight_to_dict(name=bname, shape=[self.output_dim, ], d='bias', ro=key, num=i)
+                    self.add_weight_to_nested_dict(['bias', key, i],
+                                                   bname,
+                                                   bshape,
+                                                   initializer=self.bias_initializer
+                                                   )
         self.built = True
-
-    def _add_weight_to_dict(self,
-                            name,
-                            shape,
-                            d,
-                            ro,
-                            num):
-        if 'Kernel' in name:
-            initializer = self.weight_initializer
-        else:
-            initializer = self.bias_initializer
-        w = self.add_weight(
-            name=name,
-            shape=shape,
-            initializer=initializer
-        )
-        self.weight_dict[d][ro][num] = w  # FIXME: I have a feeling this will break...
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
@@ -246,7 +227,7 @@ class SelfInteraction(Layer):
         )
 
 
-class Nonlinearity(Layer):
+class Nonlinearity(RotationallyEquivariantLayer):
 
     def __init__(self,
                  activation=None,
@@ -267,19 +248,12 @@ class Nonlinearity(Layer):
             if key != 0:
                 for i, shape in enumerate(shapes):
                     name = 'NLBias_RO{}_I{}'.format(key, i)
-                    self._add_weight_to_dict(name=name, shape=[shape[-2]], ro=key, num=i)
-
-    def _add_weight_to_dict(self,
-                            name,
-                            shape,
-                            ro,
-                            num):
-        w = self.add_weight(
-            name=name,
-            shape=shape,
-            initializer=self.bias_initializer
-        )
-        self.weight_dict[ro][num] = w  # FIXME: I have a feeling this will break...
+                    shape = [shape[-2]]
+                    self.add_weight_to_nested_dict([key, i],
+                                                   name,
+                                                   shape,
+                                                   initializer=self.bias_initializer
+                                                   )
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
