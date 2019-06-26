@@ -8,7 +8,7 @@ from keras import backend as K
 def wrap_dict(call):
 
     def get_input_dict(*args, **kwargs):
-        inputs = args[0]
+        instance, inputs = args[0], args[1:]
         input_dict = {0: [], 1: []}
         for tensor in inputs:
             if tensor.shape[-1] == 1:
@@ -17,10 +17,8 @@ def wrap_dict(call):
                 input_dict[1].append(tensor)
 
         # Pull out keys with empty lists
-        for key, tensor in input_dict.items():
-            if len(tensor) == 0:
-                input_dict.pop(key)
-        call(input_dict, **kwargs)
+        input_dict = {k: v for k, v in input_dict.items() if len(v) != 0}
+        call(instance, input_dict, **kwargs)
 
     return get_input_dict
 
@@ -28,7 +26,7 @@ def wrap_dict(call):
 def wrap_shape_dict(build):
 
     def get_shape_dict(*args, **kwargs):
-        shapes = args[0]
+        instance, shapes = args[0], args[1:]
         shape_dict = {0: [], 1: []}
         for shape in shapes:
             if shape[-1] == 1:
@@ -37,10 +35,8 @@ def wrap_shape_dict(build):
                 shape_dict[1].append(shape)
 
         # Pull out keys with empty lists
-        for key, shape in shape_dict.items():
-            if len(shape) == 0:
-                shape_dict.pop(key)
-        build(shape_dict, **kwargs)
+        shape_dict = {k: v for k, v in shape_dict.items() if len(v) != 0}
+        build(instance, shape_dict, **kwargs)
 
     return get_shape_dict
 
