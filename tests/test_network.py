@@ -1,5 +1,5 @@
 from atomic_images.layers import DistanceMatrix, GaussianBasis, OneHot
-from tfn.layers import UnitVectors, SelfInteraction, Convolution, Concatenation, Nonlinearity
+from tfn.layers import DifferenceMatrix, UnitVectors, SelfInteraction, Convolution, Concatenation, Nonlinearity
 from keras import backend as K, optimizers
 from keras.models import Model
 from keras.layers import Input, Lambda, Reshape
@@ -21,9 +21,9 @@ class TestNetwork:
     def test_network(self, random_data):
 
         cart, atom_num, energy = random_data
-        r = Input(shape=cart.shape, name='Cartesians', dtype='float32')
-        z = Input(shape=atom_num.shape, name='AtomicNums', dtype='int32')
-        one_hot = OneHot(10)(z)
+        r = Input(shape=cart.shape, name='Cartesians', dtype='float32', batch_shape=(None, 3))
+        z = Input(shape=atom_num.shape, name='AtomicNums', dtype='int32', batch_shape=(None,))
+        one_hot = OneHot(4)(z)
         dist = DistanceMatrix()(r)
         image = GaussianBasis(**{
             'width': 0.2,
@@ -31,11 +31,13 @@ class TestNetwork:
             'min_value': -1.0,
             'max_value': 15.0
         })(dist)
-        unit_vector = UnitVectors()(r)
+        unit_vector = UnitVectors()(
+            DifferenceMatrix()(r)
+        )
 
-        one_hot_reshape = Reshape((-1, 10, 1))(one_hot)
+        one_hot_reshape = Reshape((5, 1), name='OneHotReshape')(one_hot)
         embedding = SelfInteraction(output_dim=15)(one_hot_reshape)
-        conv_output = Convolution(dist_matrix=image, unit_vectors=unit_vector)([embedding])
+        conv_output = Convolution(image=image, unit_vectors=unit_vector, filter_dim=15)([embedding])
         cat_output = Concatenation()(conv_output)
         si_output = SelfInteraction(output_dim=1)(cat_output)
         predicted_atomic_e = Nonlinearity()(si_output[0])

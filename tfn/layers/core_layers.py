@@ -51,65 +51,66 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
     :return: Filter layer of rotation order 0, 1, or 2
     """
     def __init__(self,
-                 dist_matrix=None,
-                 unit_vectors=None,
+                 image,
+                 unit_vectors,
                  hidden_dim=None,
-                 output_dim=1,
+                 filter_dim=1,
                  activation=None,
-                 use_bias=None,
                  weight_initializer=None,
                  bias_initializer=None,
                  **kwargs):
         super().__init__(**kwargs)
-        error_message = ('Arg "{}" must be passed to create Convolution layer. See layer docs for list '
-                         + 'of required args.')
-        if dist_matrix is None:
-            raise ValueError(error_message.format(str(dist_matrix)))
-        self.dist_matrix = dist_matrix
-        if unit_vectors is None:
-            raise ValueError(error_message.format(str(unit_vectors)))
+        self.image = image
         self.unit_vectors = unit_vectors
+        self.input_dim = int(self.image.shape[-1])
+        if hidden_dim is None:
+            hidden_dim = self.input_dim
         self.hidden_dim = hidden_dim
-        self.output_dim = output_dim
+        self.filter_dim = filter_dim
         if activation is None:
             activation = relu
         self.activation = activation
-        self.use_bias = use_bias
         if weight_initializer is None:
             weight_initializer = glorot_normal()
         self.weight_initializer = weight_initializer
         if bias_initializer is None:
             bias_initializer = constant()
         self.bias_initializer = bias_initializer
+        self.output_tensors = []
 
     @utils.wrap_shape_dict
     def build(self, input_shape):
+        # FIXME: What the fuck, 4 nested for loops!!??
         for (key, shapes) in input_shape.items():
             for i, shape in enumerate(shapes):
-                # 4 is for 2 weights/biases for 2 filters, so 4 weight/bias pairs per input
-                for n in range(4):  # TODO: Change this number if supporting more filters
-                    wname = 'ConvKernel_RO{}_I{}_FW{}'.format(n + 1, key, i)
-                    bname = 'ConvBias_RO{}_I{}_FW{}'.format(n + 1, key, i)
-                    if self.hidden_dim is None:
-                        self.hidden_dim = shape[-1]
-                    if (n + 1) % 2 == 0:
-                        wshape = (self.hidden_dim, self.output_dim)
-                        bshape = (self.output_dim, )
-                    else:
-                        wshape = (shape[-1], self.hidden_dim)
-                        bshape = (self.hidden_dim, )
-                    self.add_weight_to_nested_dict(['kernel', key, i, n],
-                                                   name=wname,
-                                                   shape=wshape,
-                                                   initializer=self.weight_initializer
-                                                   )
-                    if self.use_bias:
-                        self.add_weight_to_nested_dict(['bias', key, i, n],
+                # 2 weights/biases for 2 filters, so 4 weight/bias pairs per input
+                for n in range(2):  # TODO: Two filters
+                    for m in range(2):  # TODO: Two sets of weights per filter
+                        wname = 'ConvKernel_RO{}_I{}_F{}_W{}'.format(key, i, n, m)
+                        bname = 'ConvBias_RO{}_I{}_F{}_W{}'.format(key, i, n, m)
+                        if (m + 1) == 2:  # Weight/Bias 2
+                            wshape = (self.filter_dim, self.hidden_dim)
+                            bshape = (self.filter_dim,)
+                        else:  # Weight/Bias 1
+                            wshape = (self.hidden_dim, self.input_dim)
+                            bshape = (self.hidden_dim, )
+                        self.add_weight_to_nested_dict(['kernel', key, i, n, m],
+                                                       name=wname,
+                                                       shape=wshape,
+                                                       initializer=self.weight_initializer)
+                        self.add_weight_to_nested_dict(['bias', key, i, n, m],
                                                        name=bname,
                                                        shape=bshape,
-                                                       initializer=self.bias_initializer
-                                                       )
+                                                       initializer=self.bias_initializer)
         self.built = True
+
+    def compute_output_shape(self, input_shape):
+        output_shapes = [
+            tuple([
+                dim.value for dim in tensor.shape
+            ]) for tensor in self.output_tensors
+        ]
+        return output_shapes
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
@@ -121,40 +122,50 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
         output_tensors = []
         for key, tensors in inputs.items():
             for i, tensor in enumerate(tensors):
-                output_dim = tensor.shape[-2]
                 # TODO: If adding support for more filters, add them here!
                 f0, f1 = self.get_filters(
-                    output_dim=output_dim,
-                    weights=[w for w in self.weight_dict['kernel'][key][i].values()],
-                    biases=[b for b in self.weight_dict['bias'][key][i].values()]
+                    kernel_dict=self.weight_dict['kernel'][key][i],
+                    bias_dict=self.weight_dict['bias'][key][i]
                 )
-                output_tensors.extend(support_layers.EquivariantCombination()([tensor, f0(self.unit_vectors)]))
-                output_tensors.extend(support_layers.EquivariantCombination()([tensor, f1(self.unit_vectors)]))
+                f0_output = support_layers.EquivariantCombination()([tensor, f0])
+                if not isinstance(f0_output, list):
+                    f0_output = [f0_output]
+                f1_output = support_layers.EquivariantCombination()([tensor, f1])
+                if not isinstance(f1_output, list):
+                    f1_output = [f1_output]
+                output_tensors.extend(f0_output)
+                output_tensors.extend(f1_output)
 
+        self.output_tensors = output_tensors
         return output_tensors
 
-    def get_filters(self, weights, biases, **kwargs):
-        dist_matrix = kwargs.pop('dist_matrix', self.dist_matrix)
-        hidden_dim = kwargs.pop('hidden_dim', self.hidden_dim)
-        output_dim = kwargs.pop('output_dim', self.output_dim)
+    def get_filters(self, kernel_dict, bias_dict, **kwargs):
+        image = kwargs.pop('image', self.image)
+        unit_vectors = kwargs.pop('unit_vectors', self.unit_vectors)
         activation = kwargs.pop('activation', self.activation)
-        return support_layers.Filter(
-            dist_matrix,
-            hidden_dim,
-            output_dim,
-            activation,
-            weights,
-            biases
+        return support_layers.Filter(activation, kernel_dict, bias_dict)(
+            [image, unit_vectors]
         )
 
 
 class Concatenation(Layer):
+    """
+    Layer for concatenating tensors of the same rotation order along a provided axis, the default being the channels
+    axis.
+
+    :param axis: int. Axis tensors are concatenated across
+    """
+    def __init__(self,
+                 axis=-2,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.axis = axis
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
         for key, tensors in inputs.items():
-            output_tensors.append(K.concatenate(tensors, axis=-2))
+            output_tensors.append(K.concatenate(tensors, axis=self.axis))
         return output_tensors
 
 
@@ -186,17 +197,22 @@ class SelfInteraction(RotationallyEquivariantLayer):
                 bname = 'SIBias_RO{}_I{}'.format(str(key), str(i))
                 bshape = (self.output_dim, )
                 self.add_weight_to_nested_dict(['kernel', key, i],
-                                               wname,
-                                               wshape,
+                                               name=wname,
+                                               shape=wshape,
                                                initializer=self.weight_initializer
                                                )
                 if self.use_bias and key == 0:
                     self.add_weight_to_nested_dict(['bias', key, i],
-                                                   bname,
-                                                   bshape,
+                                                   name=bname,
+                                                   shape=bshape,
                                                    initializer=self.bias_initializer
                                                    )
         self.built = True
+
+    def compute_output_shape(self, input_shape):
+        if not isinstance(input_shape, list):
+            input_shape = [input_shape]
+        return [(None, self.output_dim, shape[-1]) for shape in input_shape]
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
@@ -221,10 +237,8 @@ class SelfInteraction(RotationallyEquivariantLayer):
 
     @staticmethod
     def self_interaction(tensor, w, b=0):
-        ein_sum = support_layers.EinSum('bafi,gf->baig')([tensor, w])
-        combination = ein_sum + b
-        transposed = K.transpose(combination)
-        return K.permute_dimensions(transposed, pattern=[0, 2, 1])  # FIXME: May cause issues with batch dim...
+        ein_sum = support_layers.EinSum('afi,gf->aig')([tensor, w]) + b
+        return K.permute_dimensions(ein_sum, pattern=[0, 2, 1])  # FIXME: May cause issues with batch dim...
 
 
 class Nonlinearity(RotationallyEquivariantLayer):

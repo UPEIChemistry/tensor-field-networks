@@ -8,17 +8,19 @@ from keras import backend as K
 def wrap_dict(call):
 
     def get_input_dict(*args, **kwargs):
-        instance, inputs = args[0], args[1:]
+        instance, inputs = args[0], args[1]
+        if not isinstance(inputs, list):
+            inputs = [inputs]
         input_dict = {0: [], 1: []}
         for tensor in inputs:
-            if tensor.shape[-1] == 1:
+            if int(tensor.shape[-1]) == 1:
                 input_dict[0].append(tensor)
             else:
                 input_dict[1].append(tensor)
 
         # Pull out keys with empty lists
         input_dict = {k: v for k, v in input_dict.items() if len(v) != 0}
-        call(instance, input_dict, **kwargs)
+        return call(instance, input_dict, **kwargs)
 
     return get_input_dict
 
@@ -26,7 +28,9 @@ def wrap_dict(call):
 def wrap_shape_dict(build):
 
     def get_shape_dict(*args, **kwargs):
-        instance, shapes = args[0], args[1:]
+        instance, shapes = args[0], args[1]
+        if not isinstance(shapes, list):
+            shapes = [shapes]
         shape_dict = {0: [], 1: []}
         for shape in shapes:
             if shape[-1] == 1:
@@ -43,7 +47,7 @@ def wrap_shape_dict(build):
 
 def get_l_shape(i):
 
-    return (i - 1) / 2
+    return int((i - 1) / 2)
 
 
 def shifted_softplus(x):
