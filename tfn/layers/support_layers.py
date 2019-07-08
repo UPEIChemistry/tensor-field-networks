@@ -1,6 +1,7 @@
 import tensorflow as tf
 from keras.layers import Layer, Lambda
 from keras import backend as K
+import numpy as np
 
 from .. import utils
 
@@ -24,11 +25,14 @@ class Filter(Layer):
         self.unit_vectors = None
 
     def compute_output_shape(self, input_shape):
+        # [N, N, rbf], [N, 3]
+        rbf_shape, unit_vectors_shape = input_shape
+        n, _, rbf = rbf_shape
         f0_output = int(self.kernel_dict[0][1].shape[0])
         f1_output = int(self.kernel_dict[1][1].shape[0])
         return [
-            (None, None, f0_output, 1),
-            (None, None, f1_output, 3)
+            (n, n, f0_output, 1),
+            (n, n, f1_output, 3)
         ]
 
     def call(self, inputs, **kwargs):
@@ -42,15 +46,18 @@ class Filter(Layer):
 
     def get_filter0(self, weights, biases):
         radial = self.get_radial(weights, biases)
+        # [N, N, output_dim, 1]
         return K.expand_dims(radial, axis=-1)
 
     def get_filter1(self, weights, biases):
         masked_radial = self.get_masked_radial(weights, biases)
+        # [N, N, otuput_dim, 3]
         return (K.expand_dims(self.unit_vectors, axis=-2)
                 * K.expand_dims(masked_radial, axis=-1))
 
     def get_filter2(self, weights, biases):
         masked_radial = self.get_masked_radial(weights, biases)
+        # [N, N, output_dim, 5]
         return (K.expand_dims(L2SphericalHarmonic()(self.unit_vectors), axis=-2)
                 * K.expand_dims(masked_radial, axis=-1))
 
@@ -101,6 +108,7 @@ class EquivariantCombination(Layer):
                 self._i1f1o1(tensor, f)
             ]
 
+    # i,j,k = x,y,z indices, a, b = atoms, f = filters
     def _ilf0ol(self, tensor, f):
         cg = self.cg_coefficient(int(tensor.shape[-1]), axis=-2)
         return [EinSum('ijk,abfj,bfk->afi')([cg, f, tensor])]
@@ -129,7 +137,7 @@ class EquivariantCombination(Layer):
         Returns:
             K.Tensor of shape [3, 3, 3]
         """
-        eijk_ = K.zeros((3, 3, 3))
+        eijk_ = np.zeros((3, 3, 3))
         eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
         return K.constant(eijk_, dtype=dtype)
@@ -137,9 +145,15 @@ class EquivariantCombination(Layer):
 
 class DifferenceMatrix(Layer):
 
+    def compute_output_shape(self, input_shape):
+        input_shape = list(input_shape)
+        input_shape.insert(-2, input_shape[-2])
+        return tuple(input_shape)
+
+    # [..., N, 3] as input shape where N is num_atoms, returns [..., N, N, 3]
     def call(self, inputs, **kwargs):
-        i = K.expand_dims(inputs, axis=1)
-        j = K.expand_dims(inputs, axis=0)
+        i = K.expand_dims(inputs, axis=-2)
+        j = K.expand_dims(inputs, axis=-3)
         return i - j
 
 

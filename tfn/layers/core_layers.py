@@ -32,13 +32,11 @@ class Convolution(RotationallyEquivariantLayer):
     hidden_dim: int. Defaults to input_shape[-1]. Radial fxn is a 2 layer dense-net based off of
     RBF inputs of molecules
 
-    output_dim: int. Defaults to 1. What the final dimension of the Radial tensor is,
+    filter_dim: int. Defaults to 1. What the final dimension of the Radial tensor is,
     i.e. [N, N, output_dim] where N is number of points
 
     activation: func. Defaults to keras.activations.relu. Nonlinearity function to apply to the
     hidden layer of the Radial function.
-
-    use_bias: bool. Defaults to True. Determines whether or not to use biases Radial function.
 
     weight_initializer: initializer object. Defaults to keras.initializers.glorot_normal.
 
@@ -48,7 +46,7 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
     dist_matrix: np.ndarray. Distance matrix for the positions of the input system
 
 
-    :return: Filter layer of rotation order 0, 1, or 2
+    :return: Filter layer of rotation order 0 and 1
     """
     def __init__(self,
                  image,
@@ -136,6 +134,7 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
                 output_tensors.extend(f0_output)
                 output_tensors.extend(f1_output)
 
+        # FIXME: I feel like this isn't such a great idea...
         self.output_tensors = output_tensors
         return output_tensors
 
@@ -153,7 +152,7 @@ class Concatenation(Layer):
     Layer for concatenating tensors of the same rotation order along a provided axis, the default being the channels
     axis.
 
-    :param axis: int. Axis tensors are concatenated across
+    :param axis: int. Axis that tensors are concatenated across.
     """
     def __init__(self,
                  axis=-2,
@@ -212,7 +211,7 @@ class SelfInteraction(RotationallyEquivariantLayer):
     def compute_output_shape(self, input_shape):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
-        return [(None, self.output_dim, shape[-1]) for shape in input_shape]
+        return [(shape[0], shape[1], self.output_dim, shape[3]) for shape in input_shape]
 
     @utils.wrap_dict
     def call(self, inputs, **kwargs):
@@ -237,6 +236,7 @@ class SelfInteraction(RotationallyEquivariantLayer):
 
     @staticmethod
     def self_interaction(tensor, w, b=0):
+        # a = atoms, f = filters, i = 2l + 1, g = output_dim
         ein_sum = support_layers.EinSum('afi,gf->aig')([tensor, w]) + b
         return K.permute_dimensions(ein_sum, pattern=[0, 2, 1])  # FIXME: May cause issues with batch dim...
 
@@ -249,7 +249,7 @@ class Nonlinearity(RotationallyEquivariantLayer):
                  **kwargs):
         super().__init__(**kwargs)
         if activation is None:
-            self.activation = utils.shifted_softplus
+            activation = utils.shifted_softplus
         self.activation = activation
         if bias_initializer is None:
             bias_initializer = constant()
@@ -279,7 +279,7 @@ class Nonlinearity(RotationallyEquivariantLayer):
             else:
                 for i, tensor in enumerate(tensors):
                     b = self.weight_dict[key][i]
-                    norm = support_layers.Normalize()(tensor)
+                    norm = support_layers.Normalize(keepdims=False)(tensor)
                     a = self.activation(K.bias_add(norm, b))
                     factor = a / norm
                     output_tensors.append(tensor * (K.expand_dims(factor, axis=-1)))
