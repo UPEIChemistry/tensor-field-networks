@@ -1,11 +1,11 @@
 """
 Module containing basic utility functions for the TFN layers
 """
-from keras import backend as K
+from tensorflow.python.keras import backend as K
 
 
 # TODO: If add support for more L values, remember to support unpacking here!
-def wrap_dict(call):
+def inputs_to_dict(call):
 
     def get_input_dict(*args, **kwargs):
         instance, inputs = args[0], args[1]
