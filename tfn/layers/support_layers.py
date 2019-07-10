@@ -93,7 +93,7 @@ class Filter(Layer):
 class EquivariantCombination(Layer):
 
     def call(self, inputs, **kwargs):
-        # Filter shapes and ROs: [..., 2l + 1] = l
+        # HarmonicFilter shapes and ROs: [..., 2l + 1] = l
         tensor, f = inputs
         fro = utils.get_l_shape(int(f.shape[-1]))
         iro = utils.get_l_shape(int(tensor.shape[-1]))
@@ -143,43 +143,10 @@ class EquivariantCombination(Layer):
         return K.constant(eijk_, dtype=dtype)
 
 
-class DifferenceMatrix(Layer):
-
-    def compute_output_shape(self, input_shape):
-        input_shape = list(input_shape)
-        input_shape.insert(-2, input_shape[-2])
-        return tuple(input_shape)
-
-    # [..., N, 3] as input shape where N is num_atoms, returns [..., N, N, 3]
-    def call(self, inputs, **kwargs):
-        i = K.expand_dims(inputs, axis=-2)
-        j = K.expand_dims(inputs, axis=-3)
-        return i - j
 
 
-class UnitVectors(Layer):
-
-    def call(self, inputs, **kwargs):
-        v = inputs
-        den = Normalize()(v)
-        return v / den
 
 
-class Normalize(Layer):
-
-    def __init__(self,
-                 axis=-1,
-                 keepdims=True,
-                 **kwargs):
-        super().__init__(**kwargs)
-        self.axis = axis
-        self.keepdims = keepdims
-
-    def call(self, inputs, **kwargs):
-
-        return K.sqrt(
-            K.maximum(K.sum(K.square(inputs), axis=self.axis, keepdims=self.keepdims), K.epsilon())
-        )
 
 
 class L2SphericalHarmonic(Layer):

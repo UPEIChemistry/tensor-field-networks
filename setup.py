@@ -7,5 +7,5 @@ setup(
     version='0.0.0',
     description='Keras layers for rotationally equivariant Convolutional Tensor Field Networks',
     packages=find_packages(),
-    install_requires=['keras', 'tensorflow', 'numpy', 'pytest']
+    install_requires=['tensorflow', 'numpy', 'pytest']
 )

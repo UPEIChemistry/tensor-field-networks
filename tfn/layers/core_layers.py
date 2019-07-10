@@ -46,7 +46,7 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
     dist_matrix: np.ndarray. Distance matrix for the positions of the input system
 
 
-    :return: Filter layer of rotation order 0 and 1
+    :return: HarmonicFilter layer of rotation order 0 and 1
     """
     def __init__(self,
                  image,
@@ -110,7 +110,7 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
         ]
         return output_shapes
 
-    @utils.wrap_dict
+    @utils.inputs_to_dict
     def call(self, inputs, **kwargs):
         """Layer for computing rotationally-equivariant convolution on a set of input features.
 
@@ -160,7 +160,7 @@ class Concatenation(Layer):
         super().__init__(**kwargs)
         self.axis = axis
 
-    @utils.wrap_dict
+    @utils.inputs_to_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
         for key, tensors in inputs.items():
@@ -213,7 +213,7 @@ class SelfInteraction(RotationallyEquivariantLayer):
             input_shape = [input_shape]
         return [(shape[0], shape[1], self.output_dim, shape[3]) for shape in input_shape]
 
-    @utils.wrap_dict
+    @utils.inputs_to_dict
     def call(self, inputs, **kwargs):
         """
         Layer for mixing across channels, also used for increasing dimensions.
@@ -269,7 +269,7 @@ class Nonlinearity(RotationallyEquivariantLayer):
                                                    initializer=self.bias_initializer
                                                    )
 
-    @utils.wrap_dict
+    @utils.inputs_to_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
         for key, tensors in inputs.items():
