@@ -16,15 +16,17 @@ class Convolution(Layer):
                  num_filters=2,
                  **kwargs):
 
-        super(Convolution, self).__init__(**kwargs)
+        super().__init__(dynamic=True, **kwargs)
         self.image = image
         self.vectors = vectors
         self.radial = radial
         self.si_units = si_units
-        self.num_filters = 2  # When ready, add num_filters here
-        self.filters = []
-        self.si_layer = None
         self.activation = activation
+        self.num_filters = 2  # When ready, add num_filters here
+
+        self._filters = []
+        self._si_layer = None
+        self._activation_layer = None
 
     @staticmethod
     def get_tensor_ro(tensor):
@@ -38,31 +40,18 @@ class Convolution(Layer):
     @staticmethod
     def lc_tensor(dtype=tf.float32):
         """
-        Constant Levi-Civita tensor
-
-        Returns:
-            K.Tensor of shape [3, 3, 3]
+        Constant Levi-Civita tensor.
         """
         eijk_ = np.zeros((3, 3, 3))
         eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
         return tf.constant(eijk_, dtype=dtype)
 
-    @property
-    def trainable_weights(self):
-        if self.trainable:
-            return (
-                    super().trainable_weights +
-                    [f.trainable_weights for f in self.filters] +
-                    None
-            )
-        else:
-            return []
-
     def call(self, inputs, **kwargs):
         conv_outputs = self.convolution(inputs)
         concat_outputs = self.concatenation(conv_outputs)
         si_outputs = self.self_interaction(concat_outputs)
+        return self.equivariant_activation(si_outputs)
 
     @utils.inputs_to_dict
     def convolution(self, inputs):
@@ -75,8 +64,8 @@ class Convolution(Layer):
         for key, tensors in inputs.items():
             for i, tensor in enumerate(tensors):
                 input_ro = self.get_tensor_ro(tensor)
-                self.filters = [HarmonicFilter(radial=self.radial, filter_ro=n) for n in range(self.num_filters)]
-                filter_outputs = [f([self.image, self.vectors]) for f in self.filters]
+                self._filters = [HarmonicFilter(radial=self.radial, filter_ro=n) for n in range(self.num_filters)]
+                filter_outputs = [f([self.image, self.vectors]) for f in self._filters]
 
                 # L x 0 -> L; shorthand for input_ro x filter_ro -> output_ro
                 cg = self.cg_coefficient(tensor.shape[-1], axis=-2)
@@ -98,12 +87,15 @@ class Convolution(Layer):
     @staticmethod
     @utils.inputs_to_dict
     def concatenation(inputs: list, axis=-2):
-
         return [K.concatenate(tensors, axis=axis) for tensors in inputs.values()]
 
-    @utils.inputs_to_dict
     def self_interaction(self, inputs):
-        self.si_layer = SelfInteraction(self.si_units)
+        self._si_layer = SelfInteraction(self.si_units)
+        return self._si_layer(inputs)
+
+    def equivariant_activation(self, inputs):
+        self._activation_layer = EquivariantActivation(self.activation)
+        return self._activation_layer(inputs)
 
 
 class HarmonicFilter(Layer):
@@ -124,8 +116,8 @@ class HarmonicFilter(Layer):
         if radial is None:
             radial = Sequential(
                 [
-                    Dense(16, activation='relu', dynamic=True),
-                    Dense(16, activation='relu', dynamic=True)
+                    Dense(16, dynamic=True),
+                    Dense(16, dynamic=True)
                 ],
             )
         self.radial = radial
@@ -188,13 +180,11 @@ class HarmonicFilter(Layer):
         return output
 
 
-class SelfInteraction(Layer):
+class EquivarantWeighted(Layer):
 
     def __init__(self,
-                 units: int,
                  **kwargs):
-        super().__init__(**kwargs)
-        self.units = units
+        super().__init__(dynamic=True, **kwargs)
         self.weight_dict = {}
 
     def add_weight_to_nested_dict(self, indices, *args, **kwargs):
@@ -207,6 +197,15 @@ class SelfInteraction(Layer):
 
         indices = list(indices)
         add_to_dict(self.weight_dict, indices)
+
+
+class SelfInteraction(EquivarantWeighted):
+
+    def __init__(self,
+                 units: int,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.units = units
 
     @utils.shapes_to_dict
     def build(self, input_shape):
@@ -228,4 +227,49 @@ class SelfInteraction(Layer):
                 output_tensors.append(
                     tf.transpose(tf.einsum('afi,gf->aig', tensor, w), perm=[0, 2, 1])
                 )
+        return output_tensors
+
+
+class EquivariantActivation(EquivarantWeighted):
+
+    def __init__(self,
+                 activation=None,
+                 **kwargs):
+        super().__init__(**kwargs)
+        if isinstance(activation, str):
+            activation = tf.keras.activations.get(activation)
+        elif activation is None:
+            activation = utils.shifted_softplus
+        self.activation = activation
+
+    @utils.shapes_to_dict
+    def build(self, input_shape):
+        for (key, shapes) in input_shape.items():
+            for i, shape in enumerate(shapes):
+                self.add_weight_to_nested_dict(
+                    [key, i],
+                    name='RTSBias_RO{}_I{}'.format(str(key), str(i)),
+                    shape=(shape[-2],),
+                )
+        self.built = True
+
+    @utils.inputs_to_dict
+    def call(self, inputs, **kwargs):
+        output_tensors = []
+        for key, tensors in inputs.items():
+            for i, tensor in enumerate(tensors):
+                b = self.weight_dict[key][i]
+                if key == 0:
+                    b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
+                    output_tensors.append(
+                        self.activation(tensor + b)
+                    )
+                elif key == 1:
+                    norm = utils.norm_with_epsilon(tensor, axis=-1)
+                    a = self.activation(
+                        K.bias_add(norm, b)
+                    )
+                    output_tensors.append(
+                        tensor * tf.expand_dims(a / norm, axis=-1)
+                    )
         return output_tensors

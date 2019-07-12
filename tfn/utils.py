@@ -57,6 +57,14 @@ def shapes_to_dict(build):
     return get_shape_dict
 
 
+def shifted_softplus(x):
+    return tf.math.log(0.5 * tf.exp(x) + 0.5)
+
+
+def norm_with_epsilon(x, axis=None, keepdims=False):
+    return tf.sqrt(tf.maximum(tf.reduce_sum(tf.square(x), axis=axis, keepdims=keepdims), K.epsilon()))
+
+
 class DistanceMatrix(Layer):
     """
     Distance matrix layer
