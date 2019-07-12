@@ -1,5 +1,5 @@
 from atomic_images.layers import DistanceMatrix, GaussianBasis, OneHot
-from tfn.layers import DifferenceMatrix, UnitVectors, SelfInteraction, Convolution, Concatenation, Nonlinearity
+from tfn.layers_v1 import DifferenceMatrix, UnitVectors, SelfInteraction, Convolution, Concatenation, Nonlinearity
 from keras import backend as K, optimizers
 from keras.callbacks import TensorBoard
 from keras.models import Model

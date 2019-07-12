@@ -76,7 +76,7 @@ Args specific to Filter1 & Filter2 (Required for Spherical Harmonics):
         self.bias_initializer = bias_initializer
         self.output_tensors = []
 
-    @utils.wrap_shape_dict
+    @utils.shapes_to_dict
     def build(self, input_shape):
         # FIXME: What the fuck, 4 nested for loops!!??
         for (key, shapes) in input_shape.items():
@@ -187,7 +187,7 @@ class SelfInteraction(RotationallyEquivariantLayer):
         self.bias_initializer = bias_initializer
         self.weight_dict = {}
 
-    @utils.wrap_shape_dict
+    @utils.shapes_to_dict
     def build(self, input_shape):
         for (key, shapes) in input_shape.items():
             for i, shape in enumerate(shapes):
@@ -256,7 +256,7 @@ class Nonlinearity(RotationallyEquivariantLayer):
         self.bias_initializer = bias_initializer
         self.weight_dict = {}
 
-    @utils.wrap_shape_dict
+    @utils.shapes_to_dict
     def build(self, input_shape):
         for key, shapes in input_shape.items():
             if key != 0:
