@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+import tfn.layers
 import tfn.utils
 from functools import partial
 
@@ -11,10 +12,11 @@ class PreprocessingBlock(tf.keras.models.Model):
                  gaussian_config,
                  **kwargs):
         super().__init__(**kwargs)
-        self.one_hot = partial(tf.one_hot, depth=max_z)
-        self.dist_matrix = tfn.utils.DistanceMatrix()
-        self.gaussian_basis = tfn.utils.GaussianBasis(**gaussian_config)
-        self.unit_vectors = tfn.utils.UnitVectors()
+        self.max_z = max_z
+        self.one_hot = partial(tf.one_hot, depth=self.max_z)
+        self.dist_matrix = tfn.layers.DistanceMatrix(dynamic=True)
+        self.gaussian_basis = tfn.layers.GaussianBasis(**gaussian_config, dynamic=True)
+        self.unit_vectors = tfn.layers.UnitVectors(dynamic=True)
 
     def call(self, inputs, **kwargs):
         """
@@ -27,4 +29,14 @@ class PreprocessingBlock(tf.keras.models.Model):
             self.one_hot(z),
             self.gaussian_basis(self.dist_matrix(r)),
             self.unit_vectors(r)
+        ]
+
+    def compute_output_shape(self, input_shape):
+        r_shape, _ = input_shape
+        atoms, cartesians = r_shape
+
+        return [
+            tf.TensorShape([atoms, self.max_z]),
+            tf.TensorShape([atoms, atoms, 80]),
+            tf.TensorShape([atoms, atoms, 3])
         ]
