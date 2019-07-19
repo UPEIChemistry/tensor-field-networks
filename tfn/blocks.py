@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-import tfn.layers
+import tfn.utility_layers
 import tfn.utils
 from functools import partial
 
@@ -14,9 +14,9 @@ class PreprocessingBlock(tf.keras.models.Model):
         super().__init__(**kwargs)
         self.max_z = max_z
         self.one_hot = partial(tf.one_hot, depth=self.max_z)
-        self.dist_matrix = tfn.layers.DistanceMatrix(dynamic=True)
-        self.gaussian_basis = tfn.layers.GaussianBasis(**gaussian_config, dynamic=True)
-        self.unit_vectors = tfn.layers.UnitVectors(dynamic=True)
+        self.dist_matrix = tfn.utility_layers.DistanceMatrix(dynamic=True)
+        self.gaussian_basis = tfn.utility_layers.GaussianBasis(**gaussian_config, dynamic=True)
+        self.unit_vectors = tfn.utility_layers.UnitVectors(dynamic=True)
 
     def call(self, inputs, **kwargs):
         """

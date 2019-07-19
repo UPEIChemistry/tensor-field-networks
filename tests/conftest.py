@@ -47,7 +47,7 @@ def random_rbf_and_vectors():
 @pytest.fixture(scope='session')
 def random_cartesians_and_z():
     z = np.random.randint(5, size=(10, 1))
-    r = np.random.rand(10, 3)
+    r = np.random.rand(10, 3).astype('float32')
     return r, z
 
 
