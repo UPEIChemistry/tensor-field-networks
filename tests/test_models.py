@@ -7,7 +7,7 @@ from tfn.blocks import PreprocessingBlock
 
 
 class TestEnergyModels:
-    def test_default_conv_model_predict_atomic_energies(self, random_cartesians_and_z):
+    def test_default_conv_model_predict_molecular_energies(self, random_cartesians_and_z):
         class MyModel(Model):
             def __init__(self,
                          max_z=5,
@@ -29,23 +29,27 @@ class TestEnergyModels:
                 r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
                 # Slice r, z for single mol
                 one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
-                one_hot = tf.reshape(one_hot, [-1, self.max_z, 1])
+                one_hot = K.permute_dimensions(one_hot, [0, 1, 3, 2])
                 embedding = self.embedding(one_hot)
                 output = self.conv1([rbf, vectors] + embedding)
                 output = self.conv2([rbf, vectors] + output)
                 output = self.conv3([rbf, vectors] + output)
                 output = self.conv4([rbf, vectors] + output)
 
-                output = K.sum(output[0], axis=-2)
+                output = K.sum(
+                    K.sum(
+                        output[0], axis=-2
+                    ), axis=-2
+                )
                 return output
 
             def compute_output_shape(self, input_shape):
 
-                return tf.TensorShape([10, 1])
+                return tf.TensorShape([2, 1])
 
-        cartesians = np.random.rand(10, 3).astype('float32')
-        atomic_nums = np.random.randint(5, size=(10, 1))
-        e = np.random.rand(10, 1).astype('float32')
+        cartesians = np.random.rand(2, 10, 3).astype('float32')
+        atomic_nums = np.random.randint(5, size=(2, 10, 1))
+        e = np.random.rand(2, 1).astype('float32')
         model = MyModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(x=[cartesians, atomic_nums], y=e, epochs=2)

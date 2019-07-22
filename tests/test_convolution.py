@@ -101,14 +101,14 @@ class TestPassedRadialFactory:
         inputs = [
             rbf,
             values,
-            np.random.rand(10, 16, 1).astype('float32'),
-            np.random.rand(10, 16, 3).astype('float32')
+            np.random.rand(2, 10, 16, 1).astype('float32'),
+            np.random.rand(2, 10, 16, 3).astype('float32')
         ]
         targets = [
             rbf,
             values,
-            np.random.rand(10, 16, 1).astype('float32'),
-            np.random.rand(10, 16, 3).astype('float32')
+            np.random.rand(2, 10, 16, 1).astype('float32'),
+            np.random.rand(2, 10, 16, 3).astype('float32')
         ]
         model = MyModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)

@@ -129,3 +129,14 @@ class UnitVectors(Layer):
             K.maximum(K.sum(K.square(v), axis=self.axis, keepdims=self.keepdims), K.epsilon())
         )
         return v / den
+
+
+class DummyAtomMasking(Layer):
+
+    def __init__(self,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+    def call(self, inputs, **kwargs):
+        one_hot, tensor = inputs
+        atomic_numbers = K.argmax(one_hot, axis=-1)

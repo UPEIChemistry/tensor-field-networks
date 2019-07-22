@@ -161,18 +161,18 @@ class Convolution(Layer):
             input_ro = self.get_tensor_ro(tensor)
             filter_outputs = [f([image, vectors]) for f in self._filters[input_ro]]
             cg = self.cg_coefficient(tensor.shape[-1], axis=-2)
-            output_tensors.append(tf.einsum('ijk,abfj,bfk->afi', cg, filter_outputs[0], tensor))
+            output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', cg, filter_outputs[0], tensor))
             if input_ro == 0:
                 # 0 x 1 -> 1
                 cg = self.cg_coefficient(3, axis=-1)
-                output_tensors.append(tf.einsum('ijk,abfj,bfk->afi', cg, filter_outputs[1], tensor))
+                output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', cg, filter_outputs[1], tensor))
             if input_ro == 1:
                 # 1 x 1 -> 0
                 cg = self.cg_coefficient(3, axis=0)
-                output_tensors.append(tf.einsum('ijk,abfj,bfk->afi', cg, filter_outputs[1], tensor))
+                output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', cg, filter_outputs[1], tensor))
                 # 1 x 1 -> 1
                 lc_tensor = self.lc_tensor()
-                output_tensors.append(tf.einsum('ijk,abfj,bfk->afi', lc_tensor, filter_outputs[1], tensor))
+                output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', lc_tensor, filter_outputs[1], tensor))
 
         return output_tensors
 
@@ -249,15 +249,15 @@ class HarmonicFilter(Layer):
         """
         image, vectors = inputs
         if self.filter_ro == 0:
-            # [N, N, output_dim, 1]
+            # [mols, N, N, output_dim, 1]
             return K.expand_dims(self.radial(image), axis=-1)
         elif self.filter_ro == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
-            # [N, N, output_dim, 3]
+            # [mols, N, N, output_dim, 3]
             return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
         elif self.filter_ro == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
-            # [N, N, output_dim, 5]
+            # [mols, N, N, output_dim, 5]
             return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * K.expand_dims(masked_radial, axis=-1)
         else:
             raise ValueError('Unsupported RO passed for filter_ro, only capable of supplying filters of up to and '
@@ -267,7 +267,7 @@ class HarmonicFilter(Layer):
     def mask_radial(radial, vectors):
         norm = tf.norm(vectors, axis=-1)
         condition = K.expand_dims(norm < K.epsilon(), axis=-1)
-        tile = K.tile(condition, [1, 1, radial.shape[-1]])
+        tile = K.tile(condition, [1, 1, 1, radial.shape[-1]])
 
         # [N, N, output_dim]
         return tf.where(tile, K.zeros_like(radial), radial)
@@ -338,7 +338,7 @@ class SelfInteraction(EquivarantWeighted):
             for i, tensor in enumerate(tensors):
                 w = self.weight_dict[key][i]
                 output_tensors.append(
-                    tf.transpose(tf.einsum('afi,gf->aig', tensor, w), perm=[0, 2, 1])
+                    tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
                 )
         return output_tensors
 

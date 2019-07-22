@@ -2,7 +2,7 @@ import tensorflow as tf
 from tfn import layers
 import numpy as np
 from tensorflow.python.keras.models import Model, Sequential
-from tensorflow.python.keras.layers import Conv1D, Dense
+from tensorflow.python.keras.layers import Dense, Conv2D
 
 
 class TestHarmonicFilterRotationOrders:
@@ -32,24 +32,24 @@ class TestHarmonicFilterVariousRadials:
     def test_dense_radial_correct_output_shape(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
         output = layers.HarmonicFilter(radial=Dense(16, dynamic=True), filter_ro=0)([rbf, vectors])
-        assert output.shape == (10, 10, 16, 1)
+        assert output.shape == (2, 10, 10, 16, 1)
 
     def test_conv_radial_correct_output_shape(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(radial=Conv1D(16, 1, dynamic=True), filter_ro=0)([rbf, vectors])
-        assert output.shape == (10, 10, 16, 1)
+        output = layers.HarmonicFilter(radial=Conv2D(16, 1, dynamic=True), filter_ro=0)([rbf, vectors])
+        assert output.shape == (2, 10, 10, 16, 1)
 
     def test_model_radial_correct_output_shape(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
         radial = Sequential([Dense(32, dynamic=True), Dense(16, dynamic=True)])
         output = layers.HarmonicFilter(radial=radial, filter_ro=0)([rbf, vectors])
-        assert output.shape == (10, 10, 16, 1)
+        assert output.shape == (2, 10, 10, 16, 1)
 
 
 class TestHarmonicFilterTrainableWeights:
     def test_dense_radial_correct_num_trainable_weights(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
-        target = np.random.rand(10, 10, 16, 1)
+        target = np.random.rand(2, 10, 10, 16, 1)
 
         class HFModel(Model):
             def __init__(self):
@@ -60,7 +60,7 @@ class TestHarmonicFilterTrainableWeights:
                 return self.filter(inputs)
 
             def compute_output_shape(self, input_shape):
-                return tf.TensorShape([10, 10, 16, 1])
+                return tf.TensorShape([2, 10, 10, 16, 1])
 
         model = HFModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
@@ -73,11 +73,11 @@ class TestSelfInteraction:
         inputs, targets = random_features_and_targets
         si = layers.SelfInteraction(32)
         outputs = si(inputs)
-        assert outputs[0].shape == (10, 32, 1) and outputs[1].shape == (10, 32, 3)
+        assert outputs[0].shape == (2, 10, 32, 1) and outputs[1].shape == (2, 10, 32, 3)
 
     def test_correct_num_trainable_weights(self, random_features_and_targets):
         inputs, targets = random_features_and_targets
-        targets = np.random.rand(10, 32, 1), np.random.rand(10, 32, 3)
+        targets = np.random.rand(2, 10, 32, 1), np.random.rand(2, 10, 32, 3)
 
         class SIModel(Model):
             def __init__(self,
@@ -91,7 +91,7 @@ class TestSelfInteraction:
             def compute_output_shape(self, input_shape):
                 if not isinstance(input_shape, list):
                     input_shape = [input_shape]
-                return [tf.TensorShape([shape[0], 32, shape[-1]]) for shape in input_shape]
+                return [tf.TensorShape([shape[0], shape[1], 32, shape[-1]]) for shape in input_shape]
 
         model = SIModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)

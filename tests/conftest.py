@@ -7,19 +7,19 @@ from tensorflow.python.keras.models import Model
 
 @pytest.fixture(scope='session')
 def random_inputs_and_targets():
-    rbf = np.random.rand(10, 10, 80).astype('float32')
-    vectors = np.random.rand(10, 10, 3).astype('float32')
+    rbf = np.random.rand(2, 10, 10, 80).astype('float32')
+    vectors = np.random.rand(2, 10, 10, 3).astype('float32')
     inputs = [
         rbf,
         vectors,
-        np.random.rand(10, 16, 1).astype('float32'),
-        np.random.rand(10, 8, 3).astype('float32')
+        np.random.rand(2, 10, 16, 1).astype('float32'),
+        np.random.rand(2, 10, 8, 3).astype('float32')
     ]
     targets = [
         rbf,
         vectors,
-        np.random.rand(10, 16, 1).astype('float32'),
-        np.random.rand(10, 16, 3).astype('float32')
+        np.random.rand(2, 10, 16, 1).astype('float32'),
+        np.random.rand(2, 10, 16, 3).astype('float32')
     ]
     return inputs, targets
 
@@ -27,27 +27,27 @@ def random_inputs_and_targets():
 @pytest.fixture(scope='session')
 def random_features_and_targets():
     features = [
-        np.random.rand(10, 16, 1).astype('float32'),
-        np.random.rand(10, 8, 3).astype('float32')
+        np.random.rand(2, 10, 16, 1).astype('float32'),
+        np.random.rand(2, 10, 8, 3).astype('float32')
     ]
     targets = [
-        np.random.rand(10, 16, 1).astype('float32'),
-        np.random.rand(10, 16, 3).astype('float32')
+        np.random.rand(2, 10, 16, 1).astype('float32'),
+        np.random.rand(2, 10, 16, 3).astype('float32')
     ]
     return features, targets
 
 
 @pytest.fixture(scope='session')
 def random_rbf_and_vectors():
-    rbf = np.random.rand(10, 10, 80).astype('float32')
-    vectors = np.random.rand(10, 10, 3).astype('float32')
+    rbf = np.random.rand(2, 10, 10, 80).astype('float32')
+    vectors = np.random.rand(2, 10, 10, 3).astype('float32')
     return rbf, vectors
 
 
 @pytest.fixture(scope='session')
 def random_cartesians_and_z():
-    z = np.random.randint(5, size=(10, 1))
-    r = np.random.rand(10, 3).astype('float32')
+    z = np.random.randint(5, size=(2, 10, 1))
+    r = np.random.rand(2, 10, 3).astype('float32')
     return r, z
 
 
@@ -71,7 +71,7 @@ def default_conv_model():
             if not isinstance(input_shape, list):
                 input_shape = [input_shape]
             return [
-                tf.TensorShape([shape[0], 16, shape[-1]]) for shape in input_shape
+                tf.TensorShape([shape[0], shape[1], 16, shape[-1]]) for shape in input_shape
             ]
     return MultiLayerConvModel()
 
