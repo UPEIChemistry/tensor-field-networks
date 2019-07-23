@@ -11,21 +11,24 @@ class TestHarmonicFilterRotationOrders:
         output = layers.HarmonicFilter(
             radial=Dense(16, dynamic=True),
             filter_ro=0
-        )
+        )([rbf, vectors])
+        assert output.shape[-1] == 1
 
     def test_ro1_filter(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
         output = layers.HarmonicFilter(
             radial=Dense(16, dynamic=True),
             filter_ro=1
-        )
+        )([rbf, vectors])
+        assert output.shape[-1] == 3
 
     def test_ro2_filter(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
         output = layers.HarmonicFilter(
             radial=Dense(16, dynamic=True),
             filter_ro=2
-        )
+        )([rbf, vectors])
+        assert output.shape[-1] == 5
 
 
 class TestHarmonicFilterVariousRadials:
@@ -89,8 +92,6 @@ class TestSelfInteraction:
                 return self.si(tensors)
 
             def compute_output_shape(self, input_shape):
-                if not isinstance(input_shape, list):
-                    input_shape = [input_shape]
                 return [tf.TensorShape([shape[0], shape[1], 32, shape[-1]]) for shape in input_shape]
 
         model = SIModel()
@@ -122,8 +123,6 @@ class TestEquivariantActivation:
                 return self.a(tensors)
 
             def compute_output_shape(self, input_shape):
-                if not isinstance(input_shape, list):
-                    input_shape = [input_shape]
                 return [tf.TensorShape([*shape]) for shape in input_shape]
 
         model = ActModel()

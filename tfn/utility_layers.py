@@ -132,11 +132,57 @@ class UnitVectors(Layer):
 
 
 class DummyAtomMasking(Layer):
+    """
+    Masks dummy atoms (atomic number = 0 by default) with zeros
 
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
+    Inputs: atomic_numbers
+                Either or both in this order:
+                    atomic_numbers  (batch, atoms)
+                or
+                    one_hot_atomic_numbers  (batch, atoms, atomic_number)
+            value  (batch, atoms, ...)
+    Output: value with zeroes for dummy atoms  (batch, atoms, ...)
+
+    Args:
+        atom_axes (int or iterable of int): axes to which to apply
+            the masking
+
+    Keyword Args:
+        dummy_index (int): the index to mask (default: 0)
+        invert_mask (bool): if True, zeroes all but the desired index rather
+            than zeroeing the desired index
+    """
+    def __init__(self, atom_axes=1, **kwargs):
+        self.invert_mask = kwargs.pop('invert_mask', False)
+        self.dummy_index = kwargs.pop('dummy_index', 0)
+        super(DummyAtomMasking, self).__init__(trainable=False, **kwargs)
+        if isinstance(atom_axes, int):
+            atom_axes = [atom_axes]
+        elif isinstance(atom_axes, tuple):
+            atom_axes = list(atom_axes)
+        self.atom_axes = atom_axes
 
     def call(self, inputs, **kwargs):
-        one_hot, tensor = inputs
-        atomic_numbers = K.argmax(one_hot, axis=-1)
+        # `value` should be of shape (batch, atoms, ...)
+        one_hot_atomic_numbers, value = inputs
+        atomic_numbers = K.argmax(one_hot_atomic_numbers,
+                                  axis=-1)
+
+        # Form the mask that removes dummy atoms (atomic number = dummy_index)
+        if self.invert_mask:
+            selection_mask = K.equal(atomic_numbers, self.dummy_index)
+        else:
+            selection_mask = K.not_equal(atomic_numbers, self.dummy_index)
+        selection_mask = K.cast(selection_mask, value.dtype)
+
+        for axis in self.atom_axes:
+            mask = selection_mask
+            for _ in range(axis - 1):
+                mask = K.expand_dims(mask, axis=1)
+            # Add one since K.int_shape does not return batch dim
+            while len(K.int_shape(value)) != len(K.int_shape(mask)):
+                mask = K.expand_dims(mask, axis=-1)
+
+            # Zeros the energies of dummy atoms
+            value *= mask
+        return value

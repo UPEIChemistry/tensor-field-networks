@@ -6,6 +6,7 @@ from tensorflow.python.keras.layers import Layer, Dense
 
 import tfn.wrappers
 from tfn import utils
+from tfn.utility_layers import DummyAtomMasking
 import numpy as np
 
 
@@ -147,7 +148,7 @@ class Convolution(Layer):
         """
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
-        image, vectors, feature_tensors = inputs[0], inputs[1], inputs[2:]
+        image, vectors, *feature_tensors = inputs
         conv_outputs = self.point_convolution(feature_tensors, image, vectors)
         concat_outputs = self.concatenation(conv_outputs)
         si_outputs = self.self_interaction(concat_outputs)
@@ -210,6 +211,25 @@ class Convolution(Layer):
         eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
         return tf.constant(eijk_, dtype=dtype)
+
+
+class MolecularConvolution(Convolution):
+
+    def build(self, input_shape):
+        if len(input_shape) < 4:
+            raise ValueError('MolConvolution layer must be passed tensors: "one_hot", "image", "vectors", and any '
+                             'feature tensors associated with the point-cloud')
+        _, *input_shape = input_shape
+        super().build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        one_hot, *inputs = inputs
+        activated_output = super().call(inputs, **kwargs)
+        if not isinstance(activated_output, list):
+            activated_output = [activated_output]
+        return [
+            DummyAtomMasking()([one_hot, tensor]) for tensor in activated_output
+        ]
 
 
 class HarmonicFilter(Layer):
@@ -279,9 +299,9 @@ class HarmonicFilter(Layer):
         :param tensor: must be of shape [atoms, atoms, 3]
         :return: tensor. Result of L2 spherical harmonic function applied to input tensor
         """
-        x = tensor[:, :, 0]
-        y = tensor[:, :, 1]
-        z = tensor[:, :, 2]
+        x = tensor[:, :, :, 0]
+        y = tensor[:, :, :, 1]
+        z = tensor[:, :, :, 2]
         r2 = tf.maximum(tf.reduce_sum(tf.square(tensor), axis=-1), K.epsilon())
         # return : [N, N, 5]
         output = tf.stack([x * y / r2,

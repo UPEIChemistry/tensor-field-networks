@@ -9,10 +9,14 @@ class PreprocessingBlock(tf.keras.models.Model):
 
     def __init__(self,
                  max_z,
-                 gaussian_config,
+                 gaussian_config=None,
                  **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(trainable=False, **kwargs)
         self.max_z = max_z
+        if gaussian_config is None:
+            gaussian_config = {
+                'width': 0.2, 'spacing': 0.2, 'min_value': -1.0, 'max_value': 15.0
+            }
         self.one_hot = partial(tf.one_hot, depth=self.max_z)
         self.dist_matrix = tfn.utility_layers.DistanceMatrix(dynamic=True)
         self.gaussian_basis = tfn.utility_layers.GaussianBasis(**gaussian_config, dynamic=True)
@@ -29,14 +33,4 @@ class PreprocessingBlock(tf.keras.models.Model):
             self.one_hot(z),
             self.gaussian_basis(self.dist_matrix(r)),
             self.unit_vectors(r)
-        ]
-
-    def compute_output_shape(self, input_shape):
-        r_shape, _ = input_shape
-        atoms, cartesians = r_shape
-
-        return [
-            tf.TensorShape([atoms, self.max_z]),
-            tf.TensorShape([atoms, atoms, 80]),
-            tf.TensorShape([atoms, atoms, 3])
         ]
