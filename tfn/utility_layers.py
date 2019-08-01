@@ -4,6 +4,119 @@ from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.engine import Layer
 
 
+class Unstandardization(Layer):
+    """
+    Offsets energies by mean and standard deviation (optionally, per-atom)
+
+    `mu` and `sigma` both follow the following:
+        If the value is a scalar, apply it equally to all properties
+        and all types of atoms
+
+        If the value is a vector, each component corresponds to an
+        output property. It is expanded into a matrix where the
+        first axis shape is 1. It then follows the matrix rules.
+
+        If the value is a matrix, rows correspond to types of atoms and
+        columns correspond to properties.
+
+            If there is only one row, then the row vector applies to every
+            type of atom equally.
+
+            If there is one column, then the scalars are applied to every
+            property equally.
+
+            If there is a single scalar, then it is treated as a scalar.
+
+    Inputs: the inputs to this layer depend on whether or not mu and sigma
+            are given as a single scalar or per atom type.
+
+        If scalar:
+            atomic_props  (batch, atoms, energies)
+        If per type:
+            one_hot_atomic_numbers (batch, atoms, atomic_number)
+            atomic_props  (batch, atoms, energies)
+    Output: atomic_props  (batch, atoms, energies)
+
+    Attributes:
+        mu (float, list, or np.ndarray): the mean values by which
+            to offset the inputs to this layer
+        sigma (float, list, or np.ndarray): the standard deviation
+            values by which to scale the inputs to this layer
+    """
+    def __init__(self, mu, sigma, trainable=False, per_type=None, use_float64=False, **kwargs):
+        super(Unstandardization, self).__init__(trainable=trainable, **kwargs)
+        self.init_mu = mu
+        self.init_sigma = sigma
+        self.use_float64 = use_float64
+
+        self.mu = np.asanyarray(self.init_mu)
+        self.sigma = np.asanyarray(self.init_sigma)
+
+        self.per_type = len(self.mu.shape) > 0 or per_type
+
+    @staticmethod
+    def expand_ones_to_shape(arr, shape):
+        if len(arr.shape) == 0:
+            arr = arr.reshape((1 ,1))
+        if 1 in arr.shape:
+            tile_shape = tuple(shape[i] if arr.shape[i] == 1 else 1
+                               for i in range(len(shape)))
+            arr = np.tile(arr, tile_shape)
+        if arr.shape != shape:
+            raise ValueError('the arrays were not of the right shape: '
+                             'expected %s but was %s' % (shape, arr.shape))
+        return arr
+
+    def build(self, input_shapes):
+        # If mu is given as a vector, assume it applies to all atoms
+        if len(self.mu.shape) == 1:
+            self.mu = np.expand_dims(self.mu, axis=0)
+        if len(self.sigma.shape) == 1:
+            self.sigma = np.expand_dims(self.sigma, axis=0)
+
+        if self.per_type:
+            one_hot_atomic_numbers, atomic_props = input_shapes
+            w_shape = (one_hot_atomic_numbers[-1], atomic_props[-1])
+
+            self.mu = self.expand_ones_to_shape(self.mu, w_shape)
+            self.sigma = self.expand_ones_to_shape(self.sigma, w_shape)
+        else:
+            w_shape = self.mu.shape
+
+        self.mu = self.add_weight(
+            name='mu',
+            shape=w_shape,
+            initializer=lambda x: self.mu,
+        )
+        self.sigma = self.add_weight(
+            name='sigma',
+            shape=w_shape,
+            initializer=lambda x: self.sigma,
+        )
+        super(Unstandardization, self).build(input_shapes)
+
+    def call(self, inputs, **kwargs):
+        # `atomic_props` should be of shape (batch, atoms, energies)
+
+        # If mu and sigma are given per atom type, need atomic numbers
+        # to know how to apply them. Otherwise, just energies is enough.
+        if self.per_type or isinstance(inputs, (list, tuple)):
+            one_hot_atomic_numbers, atomic_props = inputs
+        else:
+            atomic_props = inputs
+        atomic_props = K.cast(atomic_props, self.dtype)
+        one_hot_atomic_numbers = K.cast(one_hot_atomic_numbers, self.dtype)
+
+        if self.per_type:
+            atomic_props *= K.dot(one_hot_atomic_numbers, self.sigma)
+            atomic_props += K.dot(one_hot_atomic_numbers, self.mu)
+        else:
+            atomic_props *= self.sigma
+            atomic_props += self.mu
+
+        return atomic_props
+
+
 class DistanceMatrix(Layer):
     """
     Distance matrix layer
