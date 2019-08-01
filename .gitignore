@@ -98,8 +98,10 @@ Icon?
 ehthumbs.db
 Thumbs.db
 
-# Custom
-keras_model_loader/kml_settings.json
-
 # Docs
 docs/html
+
+# Custom Patterns
+######################
+keras_model_loader/kml_settings.json
+examples/*

@@ -17,6 +17,8 @@ class RadialFactory(object):
     """
     def get_radial(self, feature_dim, input_ro=None, filter_ro=None):
         """
+        Factory method for obtaining radial functions of a specified architecture, or an instance of a radial function
+        (i.e. object which inherits from Layer).
 
         :param feature_dim: Dimension of the feature tensor being point convolved with the filter produced by this
             radial function. Use to ensure radial function outputs a filter of shape (atoms, feature_dim, filter_ro)
@@ -34,55 +36,52 @@ class RadialFactory(object):
 class Convolution(Layer):
     """
     Rotationally equivariant convolution operation to be applied to feature tensor(s) of a 3D point-cloud of either
-    rotation order 0 or 1, no support for rotation order 2 inputs yet. The operation has several steps:
+    rotation order 0 or 1, no support for rotation order 2 inputs yet. The arg 'inputs' in the call method is a variable
+    length list of tensors in the order: [image, vectors, feature_tensor0, feature_tensor1, ...].
 
-    1) Generation of filters. Args 'image', 'vectors', and 'radial_factory' are used to generate filters, which contain
+    The operation has several steps:
+    1) Generation of filters. 'radial_factory', image and vectors and are used to generate filters, which contain
     the majority of learnable parameters of the Convolution layer. The radial_factory is used to create radial objects
     (which inherit from Layer) to produce directionless filters through a TensorDot from a provided discretized
     distance matrix (image) of the 3D point-cloud. These directionless filters are then EinSumed with spherical harmonic
-    functions (produced by the unit vectors of the difference matrix of the point-cloud) to produce HarmonicFilters.
+    functions (produced by vectors) to produce HarmonicFilters.
 
     2) Point convolving HarmonicFilter with feature tensors. There are several types of combinations possible
     depending on the rotation order (RO, ro) of input and filter. With notation input_ro x filter_ro -> output_ro,
-    supported
-    combinations include: L x 0 -> L; 0 x 1 -> 1; 1 x 0 -> 1; 1 x 1 -> 0; 1 x 1 -> 1. For example, if input to this
-    Convolution layer is the list of feature tensors with shapes [(atoms, feature_dim, 1), (atoms, feature_dim, 3)]
-    (i.e. one RO0 tensor and one RO1 tensor) then there are 5 total combinations for these tensors
-    (2 for RO0, 3 for RO1) and thus 5 resulting tensors.
+    supported combinations include: L x 0 -> L; 0 x 1 -> 1; 1 x 0 -> 1; 1 x 1 -> 0; 1 x 1 -> 1.
+    For example, if input to this Convolution layer is the list of feature tensors with shapes (mols, atoms,
+    feature_dim, 1) and (mols, atoms, feature_dim, 3) (i.e. one RO0 tensor and one RO1 tensor) then there are 5 total
+    combinations for these tensors (2 for RO0, 3 for RO1) and thus 5 resulting tensors.
 
-    3) Concatenation of resultant Einsum tensors. In our previous example where we inputted two tensors of shapes
-    atoms, feature_dim, 1), (atoms, feature_dim, 3) and got 5 resulting tensors (2 for RO0, 3 for RO1), we concatenate
+    3) Concatenation of resultant tensors. In our previous example where we inputted two tensors of shapes (mols, atoms,
+    feature_dim, 1), (mols, atoms, feature_dim, 3) and got 5 resulting tensors (2 for RO0, 3 for RO1), we concatenate
     each set of rotation order tensors along their feature_dim axis, which is analogous to the channels dim of typical
     convolutional networks. This converts our 5 tensors to 2 output tensors, one for each rotation order.
 
-    4) Self Interaction across channels. Next, each tensor (1 for each RO) gets a seperate kernel applied, allowing
-    information mixing across the feature_dim, the dimension analogous to the channels dim of a typical conv. net.
+    4) Self Interaction across channels. Next, each tensor (1 for each RO) gets a seperate kernel applied of shape
+    (filter_dim, si_units), allowing information mixing across the feature_dim, the dimension analogous to the
+    channels dim of a typical conv. net. The output of this layer is a list of tensors of shape (mols, atoms, si_units,
+    representation_index), where representation_index refers to RO of the tensor.
 
     5) Equivariant Activation. Activations need to operate on scalar values, so RO higher than 0 must be reduced to
-    scalars. This is completed using an l2_norm on the
-    representation_index (the last axis of operand tensors). This reduced-to-scalar norm is then funneled through the
-    specified activation, after which it is cast back up to its original RO. The list of output tensors returned from
-    this op is the list returned from the Convolution layer. This layer returns as many tensors as rotation orders held
-    by all tensors in the network. E.g. if you have a single input tensor RO0 and apply RO0 & RO1 filters to it, you'll
-    have two output tensors, one RO0 and one RO1.
+    scalars. This is completed using an l2_norm on the representation_index (the last axis of operand tensors). This
+    reduced-to-scalar norm is then funneled through the specified activation, after which it is cast back up to its
+    original RO. The list of output tensors returned from this op is the list returned from the Convolution layer. This
+    layer returns as many tensors as rotation orders held by all tensors in the network. E.g. if you have a single
+    feature tensor RO0 and apply RO0 & RO1 filters to it, you'll have two output tensors, one RO0 and one RO1.
 
-    :param image: np.ndarray. Discretized 3D point-cloud distance matrix. Of shape (points, points, units) where
-        units refers to the number of bins used to represent continuous space. In an molecular setting, points are
-        atoms, and units are number of radial basis functions which activate at a particular interaction distance
-        between two atoms.
-    :param vectors: np.ndarray. Unit vectors of a 3D-point cloud difference matrix. Of shape (points, points, 3).
     :param radial_factory: RadialFactory object which returns a 'radial' function (a Keras Layer object). Defaults to
         base RadialFactory which returns radials of the architecture:
         Sequential([Dense(feature_dim, dynamic=True), Dense(feature_dim, dynamic=True)]). There are
         several requirements of this param and the radial returned by it:
         1) radial_factory must inherit from RadialFactory, i.e. it must have a 'get_radial' method.
-        2) radial must inherit from Layer, it must be learnable (radial.trainable == True), and it must be set to
-        only run in eager (i.e. radial.dynamic == True)
+        2) radial returned by radial_factory must inherit from Layer, it must be learnable (radial.trainable == True),
+        and it must be set to only run in eager (i.e. radial.dynamic == True)
         3) If supplying a custom factory object, either ensure the instance/architecture returned by will convolve with
         the associated feature tensors, or use the arg 'feature_dim' to ensure the filter produced by the radial is of
         the appropriate shape.
     :param si_units: int. Defaults to 16. The output tensor(s) of a Convolution layer are of shape
-        (atoms, si_units, representation_index). This param is analogous to the channels dim of typical
+        (mols, atoms, si_units, representation_index). This param is analogous to the number of filters in typical
         convolutional networks.
     :param activation: str or keras.activation. What nonlinearity should be applied to the output of the network
     :param filter_ro: int or sequence of bools. Defaults to 1. If single int is passed, creates filters for each RO
@@ -144,7 +143,7 @@ class Convolution(Layer):
     def call(self, inputs, **kwargs):
         """
         :param inputs: List of tensors in the order: image, vectors, feature tensors
-        :return: Feature tensors convolved with filters of shape (points, si_units, representation_index)
+        :return: Output tensors of shape (mols, atoms, si_units, representation_index)
         """
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
@@ -223,6 +222,10 @@ class MolecularConvolution(Convolution):
         super().build(input_shape)
 
     def call(self, inputs, **kwargs):
+        """
+        :param inputs: List of tensors in the order: one_hot, image, vectors, and any feature tensors of the point-cloud
+        :return: Output tensors of shape (mols, atoms, si_units, representation_index) with dummy atom values zeroed.
+        """
         one_hot, *inputs = inputs
         activated_output = super().call(inputs, **kwargs)
         if not isinstance(activated_output, list):
@@ -234,13 +237,13 @@ class MolecularConvolution(Convolution):
 
 class HarmonicFilter(Layer):
     """
-    Abstract class for generating filters.
+    Layer for generating filters from radial functions.
 
     :param radial: Callable. The learnable bits of an equivariant filter. Radial can be any tf callable
         (model, layer, op...) that takes the RBF image of shape (atoms, atoms, rbf) as input and combines it
         in some way with weights to return a learned tensor of shape (atoms, atoms, output_dim) that, when combined
         with a tensor derived from a spherical harmonic function aligned with provided unit vectors, returns a filter.
-    :param num_filters: int. How many filters the generator should output. Supports up to 2 filters, currently.
+    :param filter_ro: int. What rotation order the filter is.
     """
     def __init__(self,
                  radial,
@@ -263,9 +266,9 @@ class HarmonicFilter(Layer):
     def call(self, inputs, **kwargs):
         """Generate the filter based on provided image (and vectors, depending on requested filter rotation order).
 
-        :param inputs: List of input tensors including image, of shape (atoms, atoms, rbf), and unit_vectors, of shape
-            (atoms, atoms, 3).
-        :return: tensor. HarmonicFilter of specified rotation order.
+        :param inputs: List of input tensors in the order: image, vectors.
+        :return: HarmonicFilter tensor of shape: (mols, atoms, filter_dim, representation_index), where filter_dim is
+            determined by the radial function.
         """
         image, vectors = inputs
         if self.filter_ro == 0:
@@ -295,6 +298,7 @@ class HarmonicFilter(Layer):
     @staticmethod
     def l2_spherical_harmonic(tensor):
         """
+        Spherical harmonic functions for the L=2 example.
 
         :param tensor: must be of shape [atoms, atoms, 3]
         :return: tensor. Result of L2 spherical harmonic function applied to input tensor
