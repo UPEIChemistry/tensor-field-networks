@@ -1,4 +1,4 @@
-from typing import Union, Iterable as iterable, Callable
+from typing import Union, Iterable, Callable
 
 import tensorflow as tf
 from tensorflow.python.keras import backend as K, Sequential
@@ -92,7 +92,7 @@ class Convolution(Layer):
                  radial_factory=None,
                  si_units: int = 16,
                  activation: Union[str, Callable] = 'relu',
-                 filter_ro: Union[int, iterable[bool]] = 1,
+                 filter_ro: Union[int, Iterable[bool]] = 1,
                  **kwargs):
         super().__init__(dynamic=True, **kwargs)
         if radial_factory is None:
