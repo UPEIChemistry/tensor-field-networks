@@ -72,6 +72,19 @@ class TestHarmonicFilterTrainableWeights:
 
 
 class TestSelfInteraction:
+    class SIModel(Model):
+        def __init__(self,
+                     activity_regularizer=None,
+                     **kwargs):
+            super().__init__(**kwargs)
+            self.si = layers.SelfInteraction(32, activity_regularizer=activity_regularizer or None)
+
+        def call(self, tensors, training=None, mask=None):
+            return self.si(tensors)
+
+        def compute_output_shape(self, input_shape):
+            return [tf.TensorShape([shape[0], shape[1], 32, shape[-1]]) for shape in input_shape]
+
     def test_correct_output_shapes(self, random_features_and_targets):
         inputs, targets = random_features_and_targets
         si = layers.SelfInteraction(32)
@@ -82,26 +95,33 @@ class TestSelfInteraction:
         inputs, targets = random_features_and_targets
         targets = np.random.rand(2, 10, 32, 1), np.random.rand(2, 10, 32, 3)
 
-        class SIModel(Model):
-            def __init__(self,
-                         **kwargs):
-                super().__init__(**kwargs)
-                self.si = layers.SelfInteraction(32)
-
-            def call(self, tensors, training=None, mask=None):
-                return self.si(tensors)
-
-            def compute_output_shape(self, input_shape):
-                return [tf.TensorShape([shape[0], shape[1], 32, shape[-1]]) for shape in input_shape]
-
-        model = SIModel()
+        model = self.SIModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(x=inputs, y=targets)
 
         assert len(model.trainable_weights) == 2
 
+    def test_regularization(self, random_features_and_targets):
+        inputs, targets = random_features_and_targets
+        targets = np.random.rand(2, 10, 32, 1), np.random.rand(2, 10, 32, 3)
+        model = self.SIModel(activity_regularizer=tf.keras.regularizers.l2(0.01))
+        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
+        model.fit(x=inputs, y=targets)
+
 
 class TestEquivariantActivation:
+    class ActModel(Model):
+        def __init__(self,
+                     activity_regularizer=None,
+                     **kwargs):
+            super().__init__(**kwargs)
+            self.a = layers.EquivariantActivation(activity_regularizer=activity_regularizer or None)
+
+        def call(self, tensors, training=None, mask=None):
+            return self.a(tensors)
+
+        def compute_output_shape(self, input_shape):
+            return [tf.TensorShape([*shape]) for shape in input_shape]
 
     def test_correct_output_shapes(self, random_features_and_targets):
         inputs, targets = random_features_and_targets
@@ -112,21 +132,15 @@ class TestEquivariantActivation:
     def test_correct_num_trainable_weights(self, random_features_and_targets):
         inputs, targets = random_features_and_targets
         targets = [np.random.rand(*i.shape) for i in inputs]
-
-        class ActModel(Model):
-            def __init__(self,
-                         **kwargs):
-                super().__init__(**kwargs)
-                self.a = layers.EquivariantActivation()
-
-            def call(self, tensors, training=None, mask=None):
-                return self.a(tensors)
-
-            def compute_output_shape(self, input_shape):
-                return [tf.TensorShape([*shape]) for shape in input_shape]
-
-        model = ActModel()
+        model = self.ActModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(x=inputs, y=targets)
 
         assert len(model.trainable_weights) == 2
+
+    def test_regularization(self, random_features_and_targets):
+        inputs, targets = random_features_and_targets
+        targets = [np.random.rand(*i.shape) for i in inputs]
+        model = self.ActModel(activity_regularizer=tf.keras.regularizers.l2(0.01))
+        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
+        model.fit(x=inputs, y=targets)

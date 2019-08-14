@@ -2,7 +2,7 @@ import numpy as np
 from tensorflow.python.keras import backend as K
 from tfn.blocks import PreprocessingBlock
 from tfn.utils import rotation_matrix
-
+from tensorflow.python.keras.layers import BatchNormalizationV2
 
 class TestEquivariance:
     def test_conv_no_dummy_atoms_predicted_vectors_rotate_correctly(self,
@@ -24,6 +24,34 @@ class TestEquivariance:
         start, z = random_cartesians_and_z
         end = np.random.rand(2, 10, 3)
         model = vector_model
+        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
+        model.fit([start, z], end, epochs=5)
+        predicted_end = model.predict([start, z])
+        R = rotation_matrix([1, 0, 0], theta=np.radians(45))
+        rotated_start = np.dot(start, R)
+        predicted_rotated_end = model.predict([rotated_start, z])
+
+        assert np.all(np.isclose(np.dot(predicted_end, R), predicted_rotated_end, rtol=0, atol=1.e-5))
+
+    def test_batch_norm_dummy_atoms_perserves_equivariance(self, random_cartesians_and_z, vector_model):
+        class NormModel(vector_model.__class__):
+            def call(self, inputs, training=None, mask=None):
+                r, z = inputs
+                one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
+                embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+                output = self.conv1([one_hot, rbf, vectors] + embedding)
+                output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
+                output = self.conv2([one_hot, rbf, vectors] + output)
+                output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
+                output = self.conv3([one_hot, rbf, vectors] + output)
+                output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
+                return K.sum(
+                    output[1], axis=-2
+                )
+
+        start, z = random_cartesians_and_z
+        end = np.random.rand(2, 10, 3)
+        model = NormModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit([start, z], end, epochs=5)
         predicted_end = model.predict([start, z])

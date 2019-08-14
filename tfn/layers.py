@@ -1,7 +1,7 @@
 from typing import Union, Iterable, Callable
 
 import tensorflow as tf
-from tensorflow.python.keras import backend as K, Sequential
+from tensorflow.python.keras import backend as K, Sequential, regularizers
 from tensorflow.python.keras.layers import Layer, Dense
 
 import tfn.wrappers
@@ -28,8 +28,8 @@ class RadialFactory(object):
         :return: Keras Layer object, or subclass of Layer. Must have attr dynamic == True and trainable == True.
         """
         return Sequential([
-            Dense(32, dynamic=True),
-            Dense(feature_dim, dynamic=True)
+            Dense(32, dynamic=True, kernel_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01)),
+            Dense(feature_dim, dynamic=True, kernel_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01))
         ])
 
 
@@ -323,6 +323,8 @@ class EquivarantWeighted(Layer):
                  **kwargs):
         super().__init__(dynamic=True, **kwargs)
         self.weight_dict = {}
+        # if self.activity_regularizer is None:`
+        #     self.activity_regularizer = regularizers.l2(0.)`
 
     def add_weight_to_nested_dict(self, indices, *args, **kwargs):
         def add_to_dict(current_dict, _indices):
@@ -352,6 +354,7 @@ class SelfInteraction(EquivarantWeighted):
                     [key, i],
                     name='SIKernel_RO{}_I{}'.format(str(key), str(i)),
                     shape=(self.units, shape[-2]),
+                    regularizer=self.activity_regularizer
                 )
         self.built = True
 
@@ -391,6 +394,7 @@ class EquivariantActivation(EquivarantWeighted):
                     [key, i],
                     name='RTSBias_RO{}_I{}'.format(str(key), str(i)),
                     shape=(shape[-2],),
+                    regularizer=self.activity_regularizer
                 )
         self.built = True
 
