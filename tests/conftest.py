@@ -1,9 +1,9 @@
-import pytest
 import numpy as np
+import pytest
 import tensorflow as tf
-from tensorflow.python.keras import backend as K
-from tfn.layers import Convolution, MolecularConvolution, SelfInteraction, Preprocessing
 from tensorflow.python.keras.models import Model
+
+from tfn.layers import Convolution, MolecularConvolution, Preprocessing, SelfInteraction
 
 
 #################
@@ -146,7 +146,7 @@ class ScalarModel(Model):
         self.conv3 = MolecularConvolution(radial_factory=radial_factory)
 
     def call(self, inputs, training=None, mask=None):
-        r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
+        r, z = inputs  # (batch, points, 3) and (batch, points)
         # Slice r, z for single mol
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
         embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))

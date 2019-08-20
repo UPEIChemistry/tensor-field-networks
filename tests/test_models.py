@@ -76,7 +76,7 @@ class TestEnergyModels:
     def test_residual_conv_model_predicts_molecular_energy(self, scalar_model):
         class MyModel(scalar_model.__class__):
             def call(self, inputs, training=None, mask=None):
-                r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
+                r, z = inputs  # (batch, points, 3) and (batch, points)
                 # Slice r, z for single mol
                 one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
                 embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))

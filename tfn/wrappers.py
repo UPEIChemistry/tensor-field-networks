@@ -1,11 +1,9 @@
-"""
-Wrappers for custom Model/Layer 'call' methods
-"""
-
-from functools import partial
 
 
 def inputs_to_dict(call):
+    """
+    For internal use only. Converts a list of input tensors to a dictionary based on their representation index.
+    """
     def get_input_dict(*args, **kwargs):
         if len(args) > 1:
             instance, inputs = args[0], args[1]
@@ -32,7 +30,9 @@ def inputs_to_dict(call):
 
 
 def shapes_to_dict(build):
-
+    """
+    For internal use only. Converts a list of input shapes to a dictionary based on their representation index.
+    """
     def get_shape_dict(*args, **kwargs):
         instance, shapes = args[0], args[1]
         if not isinstance(shapes, list):
