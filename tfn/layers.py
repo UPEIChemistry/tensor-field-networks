@@ -1,13 +1,14 @@
+import numpy as np
+from functools import partial
 from typing import Union, Iterable, Callable
 
 import tensorflow as tf
 from tensorflow.python.keras import backend as K, Sequential, regularizers
 from tensorflow.python.keras.layers import Layer, Dense
 
+from atomic_images.layers import DummyAtomMasking, Unstandardization, GaussianBasis, DistanceMatrix
 import tfn.wrappers
 from tfn import utils
-from tfn.utility_layers import DummyAtomMasking
-import numpy as np
 
 
 class RadialFactory(object):
@@ -28,8 +29,18 @@ class RadialFactory(object):
         :return: Keras Layer object, or subclass of Layer. Must have attr dynamic == True and trainable == True.
         """
         return Sequential([
-            Dense(32, dynamic=True, kernel_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01)),
-            Dense(feature_dim, dynamic=True, kernel_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01))
+            Dense(
+                32,
+                dynamic=True,
+                kernel_regularizer=regularizers.l2(0.01),
+                bias_regularizer=regularizers.l2(0.01)
+            ),
+            Dense(
+                feature_dim,
+                dynamic=True,
+                kernel_regularizer=regularizers.l2(0.01),
+                bias_regularizer=regularizers.l2(0.01)
+            )
         ])
 
 
@@ -418,5 +429,58 @@ class EquivariantActivation(EquivarantWeighted):
                         tensor * tf.expand_dims(a / norm, axis=-1)
                     )
         return output_tensors
+
+
+class Preprocessing(Layer):
+
+    def __init__(self,
+                 max_z,
+                 gaussian_config=None,
+                 **kwargs):
+        super().__init__(trainable=False, **kwargs)
+        self.max_z = max_z
+        if gaussian_config is None:
+            gaussian_config = {
+                'width': 0.2, 'spacing': 0.2, 'min_value': -1.0, 'max_value': 15.0
+            }
+        self.gaussian_config = gaussian_config
+        self.one_hot = partial(tf.one_hot, depth=self.max_z)
+
+    def call(self, inputs, **kwargs):
+        """
+        Convert cartesians and atomic_nums into required tensors
+        :param inputs: list. cartesian coordinates and atomic nums, in that order
+        :return: list. one_hot, rbf, and unit_vectors tensors in that order.
+        """
+        r, z = inputs
+        return [
+            self.one_hot(z),
+            GaussianBasis(**self.gaussian_config)(DistanceMatrix()(r)),
+            UnitVectors()(r)
+        ]
+
+
+class UnitVectors(Layer):
+
+    def __init__(self,
+                 axis=-1,
+                 keepdims=True,
+                 **kwargs):
+        super(UnitVectors, self).__init__(**kwargs)
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def call(self, inputs, **kwargs):
+        """
+
+        :param inputs: cartesian tensors of shape (batch, points, 3)
+        :param kwargs:
+        :return:
+        """
+        i = K.expand_dims(inputs, axis=-2)
+        j = K.expand_dims(inputs, axis=-3)
+        v = i - j
+        den = utils.norm_with_epsilon(v, self.axis, self.keepdims)
+        return v / den
 
 

@@ -2,8 +2,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
-from tfn.layers import Convolution, MolecularConvolution, SelfInteraction
-from tfn.blocks import PreprocessingBlock
+from tfn.layers import Convolution, MolecularConvolution, SelfInteraction, Preprocessing
 from tensorflow.python.keras.models import Model
 
 
@@ -15,7 +14,7 @@ from tensorflow.python.keras.models import Model
 def default_conv_inputs_and_targets():
     z = np.random.randint(5, size=(2, 10, 1))
     r = np.random.rand(2, 10, 3).astype('float32')
-    one_hot, rbf, vectors = PreprocessingBlock(5)([r, z])
+    one_hot, rbf, vectors = Preprocessing(5)([r, z])
     inputs = [
         rbf.numpy(),
         vectors.numpy(),
@@ -35,7 +34,7 @@ def default_conv_inputs_and_targets():
 def molecular_conv_inputs_and_targets():
     r = np.random.rand(2, 10, 3).astype('float32')
     z = np.random.randint(0, 5, size=(2, 10, 1))
-    one_hot, rbf, vectors = PreprocessingBlock(5)([r, z])
+    one_hot, rbf, vectors = Preprocessing(5)([r, z])
     inputs = [
         one_hot.numpy(),
         rbf.numpy(),
@@ -149,7 +148,7 @@ class ScalarModel(Model):
     def call(self, inputs, training=None, mask=None):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
-        one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
+        one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
         embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
@@ -168,7 +167,7 @@ class ScalarModel(Model):
 class VectorModel(ScalarModel):
     def call(self, inputs, training=None, mask=None):
         r, z = inputs
-        one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
+        one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
         embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
@@ -203,7 +202,7 @@ def vector_model_no_dummy():
 
         def call(self, inputs, training=None, mask=None):
             r, z = inputs
-            one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
+            one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
             embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
             output = self.conv1([rbf, vectors] + embedding)
             output = self.conv2([rbf, vectors] + output)

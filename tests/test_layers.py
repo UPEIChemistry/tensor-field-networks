@@ -5,6 +5,24 @@ from tensorflow.python.keras.models import Model, Sequential
 from tensorflow.python.keras.layers import Dense, Conv2D
 
 
+class TestPreprocessing:
+
+    def test_preprocessing_outputs_3_tensors(self, random_cartesians_and_z):
+
+        r, z = random_cartesians_and_z
+        pre_block = layers.Preprocessing(
+            max_z=5,
+            gaussian_config={
+                'width': 0.2,
+                'spacing': 0.2,
+                'min_value': -1.0,
+                'max_value': 15.0
+            }
+        )
+        outputs = pre_block([r, z])
+        assert len(outputs) == 3
+
+
 class TestHarmonicFilterRotationOrders:
     def test_ro0_filter(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors

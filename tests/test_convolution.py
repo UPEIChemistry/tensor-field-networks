@@ -4,7 +4,7 @@ from tensorflow.python.distribute import values
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.models import Sequential
 
-from tfn.blocks import PreprocessingBlock
+from tfn.layers import Preprocessing
 from tfn.layers import RadialFactory, Convolution
 
 
@@ -21,7 +21,7 @@ class TestMolecularConvolution:
         z = np.array([[0, 5, 3, 4, 5, 2, 3, 1, 0, 0],
                      [1, 1, 2, 3, 4, 4, 0, 0, 0, 0]])
         inputs, targets = random_features_and_targets
-        points = [x.numpy() for x in PreprocessingBlock(6)([r, z])]
+        points = [x.numpy() for x in Preprocessing(6)([r, z])]
         model = molecular_conv_model
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(points + inputs, points + targets, epochs=2)
@@ -46,7 +46,7 @@ class TestDefaultRadialFactory:
         model = default_conv_model
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(x=inputs, y=targets, epochs=2)
-        # 4 tensors per filter, 4 filters per block, 4 extra tensors per block, 3 blocks == 60 total
+        # 4 tensors per filter, 4 filters per block, 4 extra tensors per block, 3 layers == 60 total
         assert len(model.trainable_weights) == 60
 
     def test_modified_si_correct_output_shape(self, default_conv_inputs_and_targets, default_conv_model):
@@ -109,7 +109,7 @@ class TestPassedRadialFactory:
         model = MyModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(x=inputs, y=targets, epochs=2)
-        # 20 filter weights and 4 extra weights per block, 3 blocks == 72 total tensors
+        # 20 filter weights and 4 extra weights per block, 3 layers == 72 total tensors
         assert len(model.trainable_weights) == 72
 
     # Only can have a shared radial if input features all have the SAME feature_dim
@@ -131,7 +131,7 @@ class TestPassedRadialFactory:
                 self.conv1 = Convolution(radial_factory=MyFactory())
                 self.conv2 = Convolution(radial_factory=MyFactory())
                 self.conv3 = Convolution(radial_factory=MyFactory())
-        one_hot, rbf, vectors = PreprocessingBlock(5)(random_cartesians_and_z)
+        one_hot, rbf, vectors = Preprocessing(5)(random_cartesians_and_z)
         inputs = [
             rbf.numpy(),
             vectors.numpy(),
@@ -147,5 +147,5 @@ class TestPassedRadialFactory:
         model = MyModel()
         model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(x=inputs, y=targets, epochs=2)
-        # 16 filter weights and 4 extra weights per block, 3 blocks == 60 total tensors
+        # 16 filter weights and 4 extra weights per block, 3 layers == 60 total tensors
         assert len(model.trainable_weights) == 60

@@ -1,8 +1,9 @@
 import numpy as np
 from tensorflow.python.keras import backend as K
-from tfn.blocks import PreprocessingBlock
+from tfn.layers import Preprocessing
 from tfn.utils import rotation_matrix
 from tensorflow.python.keras.layers import BatchNormalizationV2
+
 
 class TestEquivariance:
     def test_conv_no_dummy_atoms_predicted_vectors_rotate_correctly(self,
@@ -37,7 +38,7 @@ class TestEquivariance:
         class NormModel(vector_model.__class__):
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs
-                one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
+                one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
                 embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
@@ -76,7 +77,7 @@ class TestEnergyModels:
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
                 # Slice r, z for single mol
-                one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
+                one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
                 embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [x + y for x, y in zip(output, self.conv2([one_hot, rbf, vectors] + output))]
