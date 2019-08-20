@@ -1,13 +1,14 @@
-from typing import Union, Iterable, Callable
+from functools import partial
+from typing import Callable, Iterable, Union
 
+import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras import backend as K, Sequential, regularizers
-from tensorflow.python.keras.layers import Layer, Dense
+from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis
+from tensorflow.python.keras import Sequential, backend as K, regularizers
+from tensorflow.python.keras.layers import Dense, Layer
 
 import tfn.wrappers
 from tfn import utils
-from tfn.utility_layers import DummyAtomMasking
-import numpy as np
 
 
 class RadialFactory(object):
@@ -21,20 +22,37 @@ class RadialFactory(object):
         (i.e. object which inherits from Layer).
 
         :param feature_dim: Dimension of the feature tensor being point convolved with the filter produced by this
-            radial function. Use to ensure radial function outputs a filter of shape (atoms, feature_dim, filter_ro)
+            radial function. Use to ensure radial function outputs a filter of shape (points, feature_dim, filter_ro)
         :param input_ro: Optional. Rotation order of the of the feature tensor point convolved with the filter produced
             by this radial function
         :param filter_ro: Optional. Rotation order of the filter being produced by this radial function.
         :return: Keras Layer object, or subclass of Layer. Must have attr dynamic == True and trainable == True.
         """
         return Sequential([
-            Dense(32, dynamic=True, kernel_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01)),
-            Dense(feature_dim, dynamic=True, kernel_regularizer=regularizers.l2(0.01), bias_regularizer=regularizers.l2(0.01))
+            Dense(
+                32,
+                dynamic=True,
+                kernel_regularizer=regularizers.l2(0.01),
+                bias_regularizer=regularizers.l2(0.01)
+            ),
+            Dense(
+                feature_dim,
+                dynamic=True,
+                kernel_regularizer=regularizers.l2(0.01),
+                bias_regularizer=regularizers.l2(0.01)
+            )
         ])
 
 
 class Convolution(Layer):
     """
+    Input:
+        image (batch, points, points, basis_functions)
+        vectors (batch, points, points, 3)
+        feature_tensors [(batch, points, features_dim, representation_index), ...]
+    Output:
+        [(batch, points, si_units, representation_index), ...]
+
     Rotationally equivariant convolution operation to be applied to feature tensor(s) of a 3D point-cloud of either
     rotation order 0 or 1, no support for rotation order 2 inputs yet. The arg 'inputs' in the call method is a variable
     length list of tensors in the order: [image, vectors, feature_tensor0, feature_tensor1, ...].
@@ -49,18 +67,18 @@ class Convolution(Layer):
     2) Point convolving HarmonicFilter with feature tensors. There are several types of combinations possible
     depending on the rotation order (RO, ro) of input and filter. With notation input_ro x filter_ro -> output_ro,
     supported combinations include: L x 0 -> L; 0 x 1 -> 1; 1 x 0 -> 1; 1 x 1 -> 0; 1 x 1 -> 1.
-    For example, if input to this Convolution layer is the list of feature tensors with shapes (mols, atoms,
-    feature_dim, 1) and (mols, atoms, feature_dim, 3) (i.e. one RO0 tensor and one RO1 tensor) then there are 5 total
+    For example, if input to this Convolution layer is the list of feature tensors with shapes (batch, points,
+    feature_dim, 1) and (batch, points, feature_dim, 3) (i.e. one RO0 tensor and one RO1 tensor) then there are 5 total
     combinations for these tensors (2 for RO0, 3 for RO1) and thus 5 resulting tensors.
 
-    3) Concatenation of resultant tensors. In our previous example where we inputted two tensors of shapes (mols, atoms,
-    feature_dim, 1), (mols, atoms, feature_dim, 3) and got 5 resulting tensors (2 for RO0, 3 for RO1), we concatenate
+    3) Concatenation of resultant tensors. In our previous example where we inputted two tensors of shapes (batch, points,
+    feature_dim, 1), (batch, points, feature_dim, 3) and got 5 resulting tensors (2 for RO0, 3 for RO1), we concatenate
     each set of rotation order tensors along their feature_dim axis, which is analogous to the channels dim of typical
     convolutional networks. This converts our 5 tensors to 2 output tensors, one for each rotation order.
 
     4) Self Interaction across channels. Next, each tensor (1 for each RO) gets a seperate kernel applied of shape
     (filter_dim, si_units), allowing information mixing across the feature_dim, the dimension analogous to the
-    channels dim of a typical conv. net. The output of this layer is a list of tensors of shape (mols, atoms, si_units,
+    channels dim of a typical conv. net. The output of this layer is a list of tensors of shape (batch, points, si_units,
     representation_index), where representation_index refers to RO of the tensor.
 
     5) Equivariant Activation. Activations need to operate on scalar values, so RO higher than 0 must be reduced to
@@ -81,7 +99,7 @@ class Convolution(Layer):
         the associated feature tensors, or use the arg 'feature_dim' to ensure the filter produced by the radial is of
         the appropriate shape.
     :param si_units: int. Defaults to 16. The output tensor(s) of a Convolution layer are of shape
-        (mols, atoms, si_units, representation_index). This param is analogous to the number of filters in typical
+        (batch, points, si_units, representation_index). This param is analogous to the number of filters in typical
         convolutional networks.
     :param activation: str or keras.activation. What nonlinearity should be applied to the output of the network
     :param filter_ro: int or sequence of bools. Defaults to 1. If single int is passed, creates filters for each RO
@@ -141,19 +159,15 @@ class Convolution(Layer):
         }
 
     def call(self, inputs, **kwargs):
-        """
-        :param inputs: List of tensors in the order: image, vectors, feature tensors
-        :return: Output tensors of shape (mols, atoms, si_units, representation_index)
-        """
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
         image, vectors, *feature_tensors = inputs
-        conv_outputs = self.point_convolution(feature_tensors, image, vectors)
+        conv_outputs = self._point_convolution(feature_tensors, image, vectors)
         concat_outputs = self.concatenation(conv_outputs)
-        si_outputs = self.self_interaction(concat_outputs)
-        return self.equivariant_activation(si_outputs)
+        si_outputs = self._self_interaction(concat_outputs)
+        return self._equivariant_activation(si_outputs)
 
-    def point_convolution(self, inputs, image, vectors):
+    def _point_convolution(self, inputs, image, vectors):
         output_tensors = []
         if not isinstance(inputs, list):
             inputs = [inputs]
@@ -179,16 +193,20 @@ class Convolution(Layer):
     @staticmethod
     @tfn.wrappers.inputs_to_dict
     def concatenation(inputs: list, axis=-2):
-        return [K.concatenate(tensors, axis=axis) for tensors in inputs.values()]
+        return [tf.concat(tensors, axis=axis) for tensors in inputs.values()]
 
-    def self_interaction(self, inputs):
+    def _self_interaction(self, inputs):
         return self._si_layer(inputs)
 
-    def equivariant_activation(self, inputs):
+    def _equivariant_activation(self, inputs):
         return self._activation_layer(inputs)
 
     @staticmethod
     def get_tensor_ro(tensor):
+        """
+        Converts represenation_index (i.e. tensor.shape[-1]) to RO integer
+        :return: int. RO of tensor
+        """
         try:
             return int((tensor.shape[-1] - 1) / 2)
         except AttributeError:
@@ -213,6 +231,17 @@ class Convolution(Layer):
 
 
 class MolecularConvolution(Convolution):
+    """
+    Input:
+        one_hot (batch, points, depth)
+        image (batch, points, points, basis_functions)
+        vectors (batch, points, points, 3)
+        feature_tensors [(batch, points, features_dim, representation_index), ...]
+    Output:
+        [(batch, points, si_units, representation_index), ...]
+
+    See `Convolution` superclass documentation for full explanation of layer.
+    """
 
     def build(self, input_shape):
         if len(input_shape) < 4:
@@ -224,7 +253,7 @@ class MolecularConvolution(Convolution):
     def call(self, inputs, **kwargs):
         """
         :param inputs: List of tensors in the order: one_hot, image, vectors, and any feature tensors of the point-cloud
-        :return: Output tensors of shape (mols, atoms, si_units, representation_index) with dummy atom values zeroed.
+        :return: Output tensors of shape (batch, points, si_units, representation_index) with dummy atom values zeroed.
         """
         one_hot, *inputs = inputs
         activated_output = super().call(inputs, **kwargs)
@@ -240,8 +269,8 @@ class HarmonicFilter(Layer):
     Layer for generating filters from radial functions.
 
     :param radial: Callable. The learnable bits of an equivariant filter. Radial can be any tf callable
-        (model, layer, op...) that takes the RBF image of shape (atoms, atoms, rbf) as input and combines it
-        in some way with weights to return a learned tensor of shape (atoms, atoms, output_dim) that, when combined
+        (model, layer, op...) that takes the RBF image of shape (points, points, rbf) as input and combines it
+        in some way with weights to return a learned tensor of shape (points, points, output_dim) that, when combined
         with a tensor derived from a spherical harmonic function aligned with provided unit vectors, returns a filter.
     :param filter_ro: int. What rotation order the filter is.
     """
@@ -258,6 +287,9 @@ class HarmonicFilter(Layer):
 
     @property
     def trainable_weights(self):
+        """
+        Keras walks this list when calculating gradients to apply updates
+        """
         if self.trainable:
             return self.radial.trainable_weights
         else:
@@ -267,21 +299,21 @@ class HarmonicFilter(Layer):
         """Generate the filter based on provided image (and vectors, depending on requested filter rotation order).
 
         :param inputs: List of input tensors in the order: image, vectors.
-        :return: HarmonicFilter tensor of shape: (mols, atoms, filter_dim, representation_index), where filter_dim is
+        :return: HarmonicFilter tensor of shape: (batch, points, filter_dim, representation_index), where filter_dim is
             determined by the radial function.
         """
         image, vectors = inputs
         if self.filter_ro == 0:
-            # [mols, N, N, output_dim, 1]
-            return K.expand_dims(self.radial(image), axis=-1)
+            # (batch, points, points, filter_dim, 1)
+            return tf.expand_dims(self.radial(image), axis=-1)
         elif self.filter_ro == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
-            # [mols, N, N, output_dim, 3]
-            return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
+            # (batch, points, points, filter_dim, 3)
+            return tf.expand_dims(vectors, axis=-2) * tf.expand_dims(masked_radial, axis=-1)
         elif self.filter_ro == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
-            # [mols, N, N, output_dim, 5]
-            return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * K.expand_dims(masked_radial, axis=-1)
+            # (batch, points, points, filter_dim, 5)
+            return tf.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * tf.expand_dims(masked_radial, axis=-1)
         else:
             raise ValueError('Unsupported RO passed for filter_ro, only capable of supplying filters of up to and '
                              'including RO2.')
@@ -289,11 +321,11 @@ class HarmonicFilter(Layer):
     @staticmethod
     def mask_radial(radial, vectors):
         norm = tf.norm(vectors, axis=-1)
-        condition = K.expand_dims(norm < K.epsilon(), axis=-1)
-        tile = K.tile(condition, [1, 1, 1, radial.shape[-1]])
+        condition = tf.expand_dims(norm < K.epsilon(), axis=-1)
+        tile = tf.tile(condition, [1, 1, 1, radial.shape[-1]])
 
-        # [N, N, output_dim]
-        return tf.where(tile, K.zeros_like(radial), radial)
+        # (batch, points, points, output_dim)
+        return tf.where(tile, tf.zeros_like(radial), radial)
 
     @staticmethod
     def l2_spherical_harmonic(tensor):
@@ -307,7 +339,7 @@ class HarmonicFilter(Layer):
         y = tensor[:, :, :, 1]
         z = tensor[:, :, :, 2]
         r2 = tf.maximum(tf.reduce_sum(tf.square(tensor), axis=-1), K.epsilon())
-        # return : [N, N, 5]
+        # return : (points, points, 5)
         output = tf.stack([x * y / r2,
                            y * z / r2,
                            (-tf.square(x) - tf.square(y) + 2. * tf.square(z)) / (2 * np.sqrt(3) * r2),
@@ -323,8 +355,6 @@ class EquivarantWeighted(Layer):
                  **kwargs):
         super().__init__(dynamic=True, **kwargs)
         self.weight_dict = {}
-        # if self.activity_regularizer is None:`
-        #     self.activity_regularizer = regularizers.l2(0.)`
 
     def add_weight_to_nested_dict(self, indices, *args, **kwargs):
         def add_to_dict(current_dict, _indices):
@@ -339,7 +369,17 @@ class EquivarantWeighted(Layer):
 
 
 class SelfInteraction(EquivarantWeighted):
+    """
+    Input:
+        feature tensors [(batch, points, feature_dim, representation_index), ...]
+    Output:
+        [(batch, points, si_units, representation_index), ...]
 
+    Glorified Dense Layer for using a weight tensor (units, feature_dim) for independently mixing feature tensors
+    along their `feature_dim` axis.
+
+    :param units: int. New feature dimension for output tensors.
+    """
     def __init__(self,
                  units: int,
                  **kwargs):
@@ -371,7 +411,16 @@ class SelfInteraction(EquivarantWeighted):
 
 
 class EquivariantActivation(EquivarantWeighted):
+    """
+    Input:
+        feature tensors [(batch, points, feature_dim, representation_index), ...]
+    Output:
+        [(batch, points, feature_dim, representation_index), ...]
 
+    Applies some potentially non-linear `activation` to the list of input feature tensors.
+
+    :param activation: str, callable. Defaults to shifted_softplus. Activation to apply to input feature tensors.
+    """
     def __init__(self,
                  activation=None,
                  **kwargs):
@@ -412,7 +461,7 @@ class EquivariantActivation(EquivarantWeighted):
                 elif key == 1:
                     norm = utils.norm_with_epsilon(tensor, axis=-1)
                     a = self.activation(
-                        K.bias_add(norm, b)
+                        tf.nn.bias_add(norm, b)
                     )
                     output_tensors.append(
                         tensor * tf.expand_dims(a / norm, axis=-1)
@@ -420,3 +469,57 @@ class EquivariantActivation(EquivarantWeighted):
         return output_tensors
 
 
+class Preprocessing(Layer):
+    """
+    Input:
+        cartesian positions (batch, points, 3)
+        point types (batch, point_type)
+    Output:
+        one_hot (batch, points, depth)
+        image (batch, points, points, basis_functions)
+        vectors (batch, points, points, 3)
+
+    Convenience layer for obtaining required tensors from cartesian and point type tensors. Defaults to gaussians for
+    image basis functions.
+
+    :param max_z: int. Total number of point types + 1 (for 0 type points)
+    :param gaussian_config: dict. Contains: 'width' which specifies the size of the gaussian basis functions,
+        'spacing' which defines the size of the grid, 'min_value' which specifies the beginning point probed by the
+        grid, and 'max_value' which defines the end point of the grid.
+    """
+    def __init__(self,
+                 max_z,
+                 gaussian_config=None,
+                 **kwargs):
+        super().__init__(trainable=False, **kwargs)
+        self.max_z = max_z
+        if gaussian_config is None:
+            gaussian_config = {
+                'width': 0.2, 'spacing': 0.2, 'min_value': -1.0, 'max_value': 15.0
+            }
+        self.gaussian_config = gaussian_config
+        self.one_hot = partial(tf.one_hot, depth=self.max_z)
+
+    def call(self, inputs, **kwargs):
+        r, z = inputs
+        return [
+            self.one_hot(z),
+            GaussianBasis(**self.gaussian_config)(DistanceMatrix()(r)),
+            UnitVectors()(r)
+        ]
+
+
+class UnitVectors(Layer):
+    """
+    Input:
+        cartesian positions (..., batch, points, 3)
+    Output:
+        unit vectors between every point in every batch (..., batch, point, point, 3)
+    """
+
+    def call(self, inputs, **kwargs):
+        i = tf.expand_dims(inputs, axis=-2)
+        j = tf.expand_dims(inputs, axis=-3)
+        v = i - j
+        den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
+        return v / den

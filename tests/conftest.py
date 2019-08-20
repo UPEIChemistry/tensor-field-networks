@@ -1,10 +1,9 @@
-import pytest
 import numpy as np
+import pytest
 import tensorflow as tf
-from tensorflow.python.keras import backend as K
-from tfn.layers import Convolution, MolecularConvolution, SelfInteraction
-from tfn.blocks import PreprocessingBlock
 from tensorflow.python.keras.models import Model
+
+from tfn.layers import Convolution, MolecularConvolution, Preprocessing, SelfInteraction
 
 
 #################
@@ -15,7 +14,7 @@ from tensorflow.python.keras.models import Model
 def default_conv_inputs_and_targets():
     z = np.random.randint(5, size=(2, 10, 1))
     r = np.random.rand(2, 10, 3).astype('float32')
-    one_hot, rbf, vectors = PreprocessingBlock(5)([r, z])
+    one_hot, rbf, vectors = Preprocessing(5)([r, z])
     inputs = [
         rbf.numpy(),
         vectors.numpy(),
@@ -35,7 +34,7 @@ def default_conv_inputs_and_targets():
 def molecular_conv_inputs_and_targets():
     r = np.random.rand(2, 10, 3).astype('float32')
     z = np.random.randint(0, 5, size=(2, 10, 1))
-    one_hot, rbf, vectors = PreprocessingBlock(5)([r, z])
+    one_hot, rbf, vectors = Preprocessing(5)([r, z])
     inputs = [
         one_hot.numpy(),
         rbf.numpy(),
@@ -147,15 +146,15 @@ class ScalarModel(Model):
         self.conv3 = MolecularConvolution(radial_factory=radial_factory)
 
     def call(self, inputs, training=None, mask=None):
-        r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
+        r, z = inputs  # (batch, points, 3) and (batch, points)
         # Slice r, z for single mol
-        one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+        one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+        embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
-        return K.sum(
-            K.sum(
+        return tf.reduce_sum(
+            tf.reduce_sum(
                 output[0], axis=-2
             ), axis=-2
         )
@@ -168,12 +167,12 @@ class ScalarModel(Model):
 class VectorModel(ScalarModel):
     def call(self, inputs, training=None, mask=None):
         r, z = inputs
-        one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+        one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+        embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
-        return K.sum(
+        return tf.reduce_sum(
             output[1], axis=-2
         )
 
@@ -203,11 +202,11 @@ def vector_model_no_dummy():
 
         def call(self, inputs, training=None, mask=None):
             r, z = inputs
-            one_hot, rbf, vectors = PreprocessingBlock(self.max_z, self.gaussian_config)([r, z])
-            embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+            one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+            embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
             output = self.conv1([rbf, vectors] + embedding)
             output = self.conv2([rbf, vectors] + output)
             output = self.conv3([rbf, vectors] + output)
-            return K.sum(output[1], axis=-2)
+            return tf.reduce_sum(output[1], axis=-2)
 
     return NoDummyModel()
