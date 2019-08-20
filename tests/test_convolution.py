@@ -1,11 +1,8 @@
-import tensorflow as tf
 import numpy as np
-from tensorflow.python.distribute import values
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.models import Sequential
 
-from tfn.layers import Preprocessing
-from tfn.layers import RadialFactory, Convolution
+from tfn.layers import Convolution, Preprocessing, RadialFactory
 
 
 class TestMolecularConvolution:

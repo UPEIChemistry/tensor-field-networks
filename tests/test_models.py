@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.layers import BatchNormalizationV2
+
 from tfn.layers import Preprocessing
 from tfn.utils import rotation_matrix
-from tensorflow.python.keras.layers import BatchNormalizationV2
 
 
 class TestEquivariance:
