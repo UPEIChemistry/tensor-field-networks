@@ -29,7 +29,7 @@ class TestHarmonicFilterRotationOrders:
         rbf, vectors = random_rbf_and_vectors
         output = layers.HarmonicFilter(
             radial=Dense(16, dynamic=True),
-            filter_ro=0
+            filter_order=0
         )([rbf, vectors])
         assert output.shape[-1] == 1
 
@@ -37,7 +37,7 @@ class TestHarmonicFilterRotationOrders:
         rbf, vectors = random_rbf_and_vectors
         output = layers.HarmonicFilter(
             radial=Dense(16, dynamic=True),
-            filter_ro=1
+            filter_order=1
         )([rbf, vectors])
         assert output.shape[-1] == 3
 
@@ -45,7 +45,7 @@ class TestHarmonicFilterRotationOrders:
         rbf, vectors = random_rbf_and_vectors
         output = layers.HarmonicFilter(
             radial=Dense(16, dynamic=True),
-            filter_ro=2
+            filter_order=2
         )([rbf, vectors])
         assert output.shape[-1] == 5
 
@@ -53,18 +53,18 @@ class TestHarmonicFilterRotationOrders:
 class TestHarmonicFilterVariousRadials:
     def test_dense_radial_correct_output_shape(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(radial=Dense(16, dynamic=True), filter_ro=0)([rbf, vectors])
+        output = layers.HarmonicFilter(radial=Dense(16, dynamic=True), filter_order=0)([rbf, vectors])
         assert output.shape == (2, 10, 10, 16, 1)
 
     def test_conv_radial_correct_output_shape(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(radial=Conv2D(16, 1, dynamic=True), filter_ro=0)([rbf, vectors])
+        output = layers.HarmonicFilter(radial=Conv2D(16, 1, dynamic=True), filter_order=0)([rbf, vectors])
         assert output.shape == (2, 10, 10, 16, 1)
 
     def test_model_radial_correct_output_shape(self, random_rbf_and_vectors):
         rbf, vectors = random_rbf_and_vectors
         radial = Sequential([Dense(32, dynamic=True), Dense(16, dynamic=True)])
-        output = layers.HarmonicFilter(radial=radial, filter_ro=0)([rbf, vectors])
+        output = layers.HarmonicFilter(radial=radial, filter_order=0)([rbf, vectors])
         assert output.shape == (2, 10, 10, 16, 1)
 
 
@@ -76,7 +76,7 @@ class TestHarmonicFilterTrainableWeights:
         class HFModel(Model):
             def __init__(self):
                 super().__init__()
-                self.filter = layers.HarmonicFilter(radial=Dense(16, dynamic=True), filter_ro=0)
+                self.filter = layers.HarmonicFilter(radial=Dense(16, dynamic=True), filter_order=0)
 
             def call(self, inputs, training=None, mask=None):
                 return self.filter(inputs)

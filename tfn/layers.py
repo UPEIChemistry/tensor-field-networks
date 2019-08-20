@@ -1,4 +1,5 @@
 from functools import partial
+from logging import warning
 from typing import Callable, Iterable, Union
 
 import numpy as np
@@ -16,16 +17,16 @@ class RadialFactory(object):
     Default factory class for supplying radial functions to a Convolution layer. Subclass this factory and override its
     'get_radial' method to return custom radial instances/templates.
     """
-    def get_radial(self, feature_dim, input_ro=None, filter_ro=None):
+    def get_radial(self, feature_dim, input_order=None, filter_order=None):
         """
         Factory method for obtaining radial functions of a specified architecture, or an instance of a radial function
         (i.e. object which inherits from Layer).
 
         :param feature_dim: Dimension of the feature tensor being point convolved with the filter produced by this
-            radial function. Use to ensure radial function outputs a filter of shape (points, feature_dim, filter_ro)
-        :param input_ro: Optional. Rotation order of the of the feature tensor point convolved with the filter produced
+            radial function. Use to ensure radial function outputs a filter of shape (points, feature_dim, filter_order)
+        :param input_order: Optional. Rotation order of the of the feature tensor point convolved with the filter produced
             by this radial function
-        :param filter_ro: Optional. Rotation order of the filter being produced by this radial function.
+        :param filter_order: Optional. Rotation order of the filter being produced by this radial function.
         :return: Keras Layer object, or subclass of Layer. Must have attr dynamic == True and trainable == True.
         """
         return Sequential([
@@ -65,7 +66,7 @@ class Convolution(Layer):
     functions (produced by vectors) to produce HarmonicFilters.
 
     2) Point convolving HarmonicFilter with feature tensors. There are several types of combinations possible
-    depending on the rotation order (RO, ro) of input and filter. With notation input_ro x filter_ro -> output_ro,
+    depending on the rotation order (RO, ro) of input and filter. With notation input_order x filter_order -> output_ro,
     supported combinations include: L x 0 -> L; 0 x 1 -> 1; 1 x 0 -> 1; 1 x 1 -> 0; 1 x 1 -> 1.
     For example, if input to this Convolution layer is the list of feature tensors with shapes (batch, points,
     feature_dim, 1) and (batch, points, feature_dim, 3) (i.e. one RO0 tensor and one RO1 tensor) then there are 5 total
@@ -102,15 +103,16 @@ class Convolution(Layer):
         (batch, points, si_units, representation_index). This param is analogous to the number of filters in typical
         convolutional networks.
     :param activation: str or keras.activation. What nonlinearity should be applied to the output of the network
-    :param filter_ro: int or sequence of bools. Defaults to 1. If single int is passed, creates filters for each RO
-        from [0, filter_ro]. If sequence is passed, then list index refers which RO values to use. E.g. passing
+    :param filter_order: int or sequence of bools. Defaults to 1. If single int is passed, creates filters for each RO
+        from [0, filter_order]. If sequence is passed, then list index refers which RO values to use. E.g. passing
         [False, True] will produce only filters of RO1, not RO0.
     """
     def __init__(self,
                  radial_factory=None,
                  si_units: int = 16,
                  activation: Union[str, Callable] = 'relu',
-                 filter_ro: Union[int, Iterable[bool]] = 1,
+                 max_filter_order: Union[int, Iterable[bool]] = 1,
+                 output_orders: list = None,
                  **kwargs):
         super().__init__(dynamic=True, **kwargs)
         if radial_factory is None:
@@ -118,7 +120,10 @@ class Convolution(Layer):
         self.radial_factory = radial_factory
         self.si_units = si_units
         self.activation = activation
-        self.filter_ro = filter_ro
+        self.max_filter_order = max_filter_order
+        if not isinstance(output_orders, list) or output_orders is None:
+            output_orders = [0, 1]
+        self.output_orders = output_orders
 
         self._filters = {}
         self._si_layer = None
@@ -130,10 +135,10 @@ class Convolution(Layer):
         self._activation_layer = EquivariantActivation(self.activation)
 
         # Validation and parameter prepping
-        if isinstance(self.filter_ro, int):
-            filter_orders = range(self.filter_ro + 1)
+        if isinstance(self.max_filter_order, int):
+            filter_orders = range(self.max_filter_order + 1)
         else:
-            filter_orders = [i for i, f in zip([0, 1], self.filter_ro) if f]
+            filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
         if not isinstance(self.radial_factory.get_radial(1, 0, 0), Layer):  # This may be costly, and not required
             raise ValueError(
                 'passed radial_factory returned radial of type: {}, '
@@ -149,12 +154,12 @@ class Convolution(Layer):
                 HarmonicFilter(
                     self.radial_factory.get_radial(
                         shape[-2],
-                        input_ro=self.get_tensor_ro(shape),
-                        filter_ro=filter_ro
+                        input_order=self.get_tensor_ro(shape),
+                        filter_order=filter_order
                     ),
-                    filter_ro=filter_ro
+                    filter_order=filter_order
                 )
-                for filter_ro in filter_orders
+                for filter_order in filter_orders
             ] for shape in input_shape
         }
 
@@ -172,22 +177,28 @@ class Convolution(Layer):
         if not isinstance(inputs, list):
             inputs = [inputs]
         for tensor in inputs:
-            input_ro = self.get_tensor_ro(tensor)
-            filter_outputs = [f([image, vectors]) for f in self._filters[input_ro]]
-            cg = self.cg_coefficient(tensor.shape[-1], axis=-2)
-            output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', cg, filter_outputs[0], tensor))
-            if input_ro == 0:
-                # 0 x 1 -> 1
-                cg = self.cg_coefficient(3, axis=-1)
-                output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', cg, filter_outputs[1], tensor))
-            if input_ro == 1:
-                # 1 x 1 -> 0
-                cg = self.cg_coefficient(3, axis=0)
-                output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', cg, filter_outputs[1], tensor))
-                # 1 x 1 -> 1
-                lc_tensor = self.lc_tensor()
-                output_tensors.append(tf.einsum('ijk,mabfj,mbfk->mafi', lc_tensor, filter_outputs[1], tensor))
-
+            input_order = self.get_tensor_ro(tensor)
+            for hfilter in [f([image, vectors]) for f in self._filters[input_order]]:
+                filter_order = self.get_tensor_ro(hfilter)
+                if filter_order == 0 and input_order in self.output_orders:  # L x 0 -> L
+                    coefficient = self.cg_coefficient(tensor.shape[-1], axis=-2)
+                elif input_order == 0 and filter_order == 1 and 1 in self.output_orders:
+                    coefficient = self.cg_coefficient(3, axis=-1)  # 0 x 1 -> 1: Scalar multiplication
+                elif input_order == 1 and filter_order == 1 and 0 in self.output_orders:
+                    coefficient = self.cg_coefficient(3, axis=0)  # 1 x 1 -> 0: Double contraction
+                elif input_order == 1 and filter_order == 1 and 1 in self.output_orders:
+                    coefficient = self.lc_tensor()  # 1 x 1 -> 1: Elementwise multiplcation
+                else:
+                    warning('Unable to find appropriate combination: {} x {} -> {}, skipping...'.format(
+                        input_order, filter_order, self.output_orders
+                    ))
+                    continue
+                output_tensors.append(
+                    tf.einsum('ijk,mabfj,mbfk->mafi', coefficient, hfilter, tensor)
+                )
+        if not output_tensors:
+            raise ValueError('No possible combinations between inputs and filters were found for requested output'
+                             'tensor orders.')
         return output_tensors
 
     @staticmethod
@@ -272,18 +283,18 @@ class HarmonicFilter(Layer):
         (model, layer, op...) that takes the RBF image of shape (points, points, rbf) as input and combines it
         in some way with weights to return a learned tensor of shape (points, points, output_dim) that, when combined
         with a tensor derived from a spherical harmonic function aligned with provided unit vectors, returns a filter.
-    :param filter_ro: int. What rotation order the filter is.
+    :param filter_order: int. What rotation order the filter is.
     """
     def __init__(self,
                  radial,
-                 filter_ro=0,
+                 filter_order=0,
                  **kwargs):
         super().__init__(dynamic=True, **kwargs)
-        self.filter_ro = filter_ro
+        self.filter_order = filter_order
         if not isinstance(radial, Layer):
             raise ValueError('Radial must subclass Layer, but is of type: {}'.format(type(radial).__name__))
         self.radial = radial
-        self.filter_ro = filter_ro
+        self.filter_order = filter_order
 
     @property
     def trainable_weights(self):
@@ -303,19 +314,19 @@ class HarmonicFilter(Layer):
             determined by the radial function.
         """
         image, vectors = inputs
-        if self.filter_ro == 0:
+        if self.filter_order == 0:
             # (batch, points, points, filter_dim, 1)
             return tf.expand_dims(self.radial(image), axis=-1)
-        elif self.filter_ro == 1:
+        elif self.filter_order == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # (batch, points, points, filter_dim, 3)
             return tf.expand_dims(vectors, axis=-2) * tf.expand_dims(masked_radial, axis=-1)
-        elif self.filter_ro == 2:
+        elif self.filter_order == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # (batch, points, points, filter_dim, 5)
             return tf.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * tf.expand_dims(masked_radial, axis=-1)
         else:
-            raise ValueError('Unsupported RO passed for filter_ro, only capable of supplying filters of up to and '
+            raise ValueError('Unsupported RO passed for filter_order, only capable of supplying filters of up to and '
                              'including RO2.')
 
     @staticmethod
