@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 from tensorflow.python.keras import backend as K
 from tfn.layers import Preprocessing
 from tfn.utils import rotation_matrix
@@ -39,14 +40,14 @@ class TestEquivariance:
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs
                 one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+                embedding = self.embedding(tf.transpose(one_hot, perm=[0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
                 output = self.conv2([one_hot, rbf, vectors] + output)
                 output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
                 output = self.conv3([one_hot, rbf, vectors] + output)
                 output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
-                return K.sum(
+                return tf.reduce_sum(
                     output[1], axis=-2
                 )
 
@@ -78,12 +79,12 @@ class TestEnergyModels:
                 r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
                 # Slice r, z for single mol
                 one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+                embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [x + y for x, y in zip(output, self.conv2([one_hot, rbf, vectors] + output))]
                 output = [x + y for x, y in zip(output, self.conv3([one_hot, rbf, vectors] + output))]
                 assert len(output) == 2  # Combining things properly
-                return K.sum(K.sum(output[0], axis=-2), axis=-2)
+                return tf.reduce_sum(tf.reduce_sum(output[0], axis=-2), axis=-2)
 
         cartesians = np.random.rand(2, 10, 3).astype('float32')
         atomic_nums = np.random.randint(0, 5, size=(2, 10, 1))

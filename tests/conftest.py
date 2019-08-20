@@ -149,12 +149,12 @@ class ScalarModel(Model):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+        embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
-        return K.sum(
-            K.sum(
+        return tf.reduce_sum(
+            tf.reduce_sum(
                 output[0], axis=-2
             ), axis=-2
         )
@@ -168,11 +168,11 @@ class VectorModel(ScalarModel):
     def call(self, inputs, training=None, mask=None):
         r, z = inputs
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+        embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
-        return K.sum(
+        return tf.reduce_sum(
             output[1], axis=-2
         )
 
@@ -203,10 +203,10 @@ def vector_model_no_dummy():
         def call(self, inputs, training=None, mask=None):
             r, z = inputs
             one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-            embedding = self.embedding(K.permute_dimensions(one_hot, [0, 1, 3, 2]))
+            embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
             output = self.conv1([rbf, vectors] + embedding)
             output = self.conv2([rbf, vectors] + output)
             output = self.conv3([rbf, vectors] + output)
-            return K.sum(output[1], axis=-2)
+            return tf.reduce_sum(output[1], axis=-2)
 
     return NoDummyModel()

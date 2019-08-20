@@ -190,7 +190,7 @@ class Convolution(Layer):
     @staticmethod
     @tfn.wrappers.inputs_to_dict
     def concatenation(inputs: list, axis=-2):
-        return [K.concatenate(tensors, axis=axis) for tensors in inputs.values()]
+        return [tf.concat(tensors, axis=axis) for tensors in inputs.values()]
 
     def self_interaction(self, inputs):
         return self._si_layer(inputs)
@@ -284,15 +284,16 @@ class HarmonicFilter(Layer):
         image, vectors = inputs
         if self.filter_ro == 0:
             # [mols, N, N, output_dim, 1]
-            return K.expand_dims(self.radial(image), axis=-1)
+            tf.exp
+            return tf.expand_dims(self.radial(image), axis=-1)
         elif self.filter_ro == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # [mols, N, N, output_dim, 3]
-            return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
+            return tf.expand_dims(vectors, axis=-2) * tf.expand_dims(masked_radial, axis=-1)
         elif self.filter_ro == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # [mols, N, N, output_dim, 5]
-            return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * K.expand_dims(masked_radial, axis=-1)
+            return tf.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * tf.expand_dims(masked_radial, axis=-1)
         else:
             raise ValueError('Unsupported RO passed for filter_ro, only capable of supplying filters of up to and '
                              'including RO2.')
@@ -300,11 +301,11 @@ class HarmonicFilter(Layer):
     @staticmethod
     def mask_radial(radial, vectors):
         norm = tf.norm(vectors, axis=-1)
-        condition = K.expand_dims(norm < K.epsilon(), axis=-1)
-        tile = K.tile(condition, [1, 1, 1, radial.shape[-1]])
+        condition = tf.expand_dims(norm < K.epsilon(), axis=-1)
+        tile = tf.tile(condition, [1, 1, 1, radial.shape[-1]])
 
         # [N, N, output_dim]
-        return tf.where(tile, K.zeros_like(radial), radial)
+        return tf.where(tile, tf.zeros_like(radial), radial)
 
     @staticmethod
     def l2_spherical_harmonic(tensor):
@@ -423,7 +424,7 @@ class EquivariantActivation(EquivarantWeighted):
                 elif key == 1:
                     norm = utils.norm_with_epsilon(tensor, axis=-1)
                     a = self.activation(
-                        K.bias_add(norm, b)
+                        tf.nn.bias_add(norm, b)
                     )
                     output_tensors.append(
                         tensor * tf.expand_dims(a / norm, axis=-1)
@@ -477,8 +478,8 @@ class UnitVectors(Layer):
         :param kwargs:
         :return:
         """
-        i = K.expand_dims(inputs, axis=-2)
-        j = K.expand_dims(inputs, axis=-3)
+        i = tf.expand_dims(inputs, axis=-2)
+        j = tf.expand_dims(inputs, axis=-3)
         v = i - j
         den = utils.norm_with_epsilon(v, self.axis, self.keepdims)
         return v / den
