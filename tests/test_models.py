@@ -42,11 +42,11 @@ class TestEquivariance:
                 one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
                 embedding = self.embedding(tf.transpose(one_hot, perm=[0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
-                output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
+                output = [BatchNormalizationV2(axis=-2)(o) for o in output]
                 output = self.conv2([one_hot, rbf, vectors] + output)
-                output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
+                output = [BatchNormalizationV2(axis=-2)(o) for o in output]
                 output = self.conv3([one_hot, rbf, vectors] + output)
-                output = [BatchNormalizationV2(axis=-2, dynamic=True)(o) for o in output]
+                output = [BatchNormalizationV2(axis=-2)(o) for o in output]
                 return tf.reduce_sum(
                     output[1], axis=-2
                 )

@@ -32,13 +32,11 @@ class RadialFactory(object):
         return Sequential([
             Dense(
                 32,
-                dynamic=True,
                 kernel_regularizer=regularizers.l2(0.01),
                 bias_regularizer=regularizers.l2(0.01)
             ),
             Dense(
                 feature_dim,
-                dynamic=True,
                 kernel_regularizer=regularizers.l2(0.01),
                 bias_regularizer=regularizers.l2(0.01)
             )
@@ -91,7 +89,7 @@ class Convolution(Layer):
 
     :param radial_factory: RadialFactory object which returns a 'radial' function (a Keras Layer object). Defaults to
         base RadialFactory which returns radials of the architecture:
-        Sequential([Dense(feature_dim, dynamic=True), Dense(feature_dim, dynamic=True)]). There are
+        Sequential([Dense(feature_dim), Dense(feature_dim)]). There are
         several requirements of this param and the radial returned by it:
         1) radial_factory must inherit from RadialFactory, i.e. it must have a 'get_radial' method.
         2) radial returned by radial_factory must inherit from Layer, it must be learnable (radial.trainable == True),
@@ -114,7 +112,7 @@ class Convolution(Layer):
                  max_filter_order: Union[int, Iterable[bool]] = 1,
                  output_orders: list = None,
                  **kwargs):
-        super().__init__(dynamic=True, **kwargs)
+        super().__init__(**kwargs)
         if radial_factory is None:
             radial_factory = RadialFactory()
         self.radial_factory = radial_factory
@@ -289,7 +287,7 @@ class HarmonicFilter(Layer):
                  radial,
                  filter_order=0,
                  **kwargs):
-        super().__init__(dynamic=True, **kwargs)
+        super().__init__(**kwargs)
         self.filter_order = filter_order
         if not isinstance(radial, Layer):
             raise ValueError('Radial must subclass Layer, but is of type: {}'.format(type(radial).__name__))
@@ -364,7 +362,7 @@ class EquivarantWeighted(Layer):
 
     def __init__(self,
                  **kwargs):
-        super().__init__(dynamic=True, **kwargs)
+        super().__init__(**kwargs)
         self.weight_dict = {}
 
     def add_weight_to_nested_dict(self, indices, *args, **kwargs):

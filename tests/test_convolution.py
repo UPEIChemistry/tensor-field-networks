@@ -73,26 +73,26 @@ class TestPassedRadialFactory:
                 if input_order == 0:
                     if filter_order == 0:
                         return Sequential([
-                            Dense(32, dynamic=True),
-                            Dense(feature_dim, dynamic=True)
+                            Dense(32),
+                            Dense(feature_dim)
                         ])
                     elif filter_order == 1:
                         return Sequential([
-                            Dense(32, dynamic=True),
-                            Dense(16, dynamic=True),
-                            Dense(feature_dim, dynamic=True)
+                            Dense(32),
+                            Dense(16),
+                            Dense(feature_dim)
                         ])
                 elif input_order == 1:
                     if filter_order == 0:
                         return Sequential([
-                            Dense(feature_dim, dynamic=True)
+                            Dense(feature_dim)
                         ])
                     elif filter_order == 1:
                         return Sequential([
-                            Dense(64, dynamic=True),
-                            Dense(32, dynamic=True),
-                            Dense(16, dynamic=True),
-                            Dense(feature_dim, dynamic=True)
+                            Dense(64),
+                            Dense(32),
+                            Dense(16),
+                            Dense(feature_dim)
                         ])
 
         class MyModel(default_conv_model.__class__):
@@ -115,8 +115,8 @@ class TestPassedRadialFactory:
         class MyFactory(RadialFactory):
             def __init__(self):
                 self.model = Sequential([
-                    Dense(16, dynamic=True),
-                    Dense(16, dynamic=True)
+                    Dense(16),
+                    Dense(16)
                 ])
 
             def get_radial(self, feature_dim, input_order=None, filter_order=None):
