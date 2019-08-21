@@ -134,7 +134,7 @@ class Convolution(Layer):
 
         # Validation and parameter prepping
         if isinstance(self.max_filter_order, int):
-            filter_orders = range(self.max_filter_order + 1)
+            filter_orders = list(range(self.max_filter_order + 1))
         else:
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
         if not isinstance(self.radial_factory.get_radial(1, 0, 0), Layer):  # This may be costly, and not required
@@ -157,7 +157,7 @@ class Convolution(Layer):
                     ),
                     filter_order=filter_order
                 )
-                for filter_order in filter_orders
+                for filter_order in filter_orders if self._possible_coefficient(self.get_tensor_ro(shape), filter_order)
             ] for shape in input_shape
         }
 
@@ -170,6 +170,25 @@ class Convolution(Layer):
         si_outputs = self._self_interaction(concat_outputs)
         return self._equivariant_activation(si_outputs)
 
+    def _possible_coefficient(self, input_order, filter_order, no_coefficients=True):
+        """
+        Observes if the input and filter can be combined to produced an output that is contained in
+        `self.output_orders`.
+
+        :param no_coefficients: bool. Defaults to `True`. Set to `False` to return the CG/LC coefficient tensor instead.
+        :return: `bool` or tensor object
+        """
+        if input_order == 0 and filter_order == 1 and 1 in self.output_orders:
+            return no_coefficients or self.cg_coefficient(self.get_representation_index_from_ro(filter_order), axis=-1)
+        elif input_order == 1 and filter_order == 1 and 0 in self.output_orders:
+            return no_coefficients or self.cg_coefficient(self.get_representation_index_from_ro(filter_order), axis=0)
+        elif input_order == 1 and filter_order == 1 and 1 in self.output_orders:
+            return no_coefficients or self.lc_tensor()
+        elif filter_order == 0 and input_order in self.output_orders:
+            return no_coefficients or self.cg_coefficient(self.get_representation_index_from_ro(input_order), axis=-2)
+        else:
+            return False
+
     def _point_convolution(self, inputs, image, vectors):
         output_tensors = []
         if not isinstance(inputs, list):
@@ -178,24 +197,23 @@ class Convolution(Layer):
             input_order = self.get_tensor_ro(tensor)
             for hfilter in [f([image, vectors]) for f in self._filters[input_order]]:
                 filter_order = self.get_tensor_ro(hfilter)
-                if filter_order == 0 and input_order in self.output_orders:  # L x 0 -> L
-                    coefficient = self.cg_coefficient(tensor.shape[-1], axis=-2)
-                elif input_order == 0 and filter_order == 1 and 1 in self.output_orders:
-                    coefficient = self.cg_coefficient(3, axis=-1)  # 0 x 1 -> 1: Scalar multiplication
-                elif input_order == 1 and filter_order == 1 and 0 in self.output_orders:
-                    coefficient = self.cg_coefficient(3, axis=0)  # 1 x 1 -> 0: Double contraction
-                elif input_order == 1 and filter_order == 1 and 1 in self.output_orders:
-                    coefficient = self.lc_tensor()  # 1 x 1 -> 1: Elementwise multiplcation
+                coefficient = self._possible_coefficient(
+                    input_order,
+                    filter_order,
+                    no_coefficients=False
+                )
+                if coefficient is not False:
+                    output_tensors.append(
+                        tf.einsum('ijk,mabfj,mbfk->mafi', coefficient, hfilter, tensor)
+                    )
                 else:
                     warning('Unable to find appropriate combination: {} x {} -> {}, skipping...'.format(
                         input_order, filter_order, self.output_orders
                     ))
                     continue
-                output_tensors.append(
-                    tf.einsum('ijk,mabfj,mbfk->mafi', coefficient, hfilter, tensor)
-                )
+
         if not output_tensors:
-            raise ValueError('No possible combinations between inputs and filters were found for requested output'
+            raise ValueError('No possible combinations between inputs and filters were found for requested output '
                              'tensor orders.')
         return output_tensors
 
@@ -214,12 +232,20 @@ class Convolution(Layer):
     def get_tensor_ro(tensor):
         """
         Converts represenation_index (i.e. tensor.shape[-1]) to RO integer
+
         :return: int. RO of tensor
         """
         try:
             return int((tensor.shape[-1] - 1) / 2)
         except AttributeError:
             return int((tensor[-1] - 1) / 2)
+
+    @staticmethod
+    def get_representation_index_from_ro(ro):
+        """
+        Converts from RO to representation_index
+        """
+        return (ro * 2) + 1
 
     @staticmethod
     def cg_coefficient(size, axis, dtype=tf.float32):
