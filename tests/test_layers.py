@@ -134,7 +134,7 @@ class TestEquivariantActivation:
                      activity_regularizer=None,
                      **kwargs):
             super().__init__(**kwargs)
-            self.a = layers.EquivariantActivation(activity_regularizer=activity_regularizer or None)
+            self.a = layers.EquivariantActivation(activity_regularizer=activity_regularizer)
 
         def call(self, tensors, training=None, mask=None):
             return self.a(tensors)

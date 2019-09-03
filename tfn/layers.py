@@ -45,13 +45,6 @@ class RadialFactory(object):
 
 class Convolution(Layer):
     """
-    Input:
-        image (batch, points, points, basis_functions)
-        vectors (batch, points, points, 3)
-        feature_tensors [(batch, points, features_dim, representation_index), ...]
-    Output:
-        [(batch, points, si_units, representation_index), ...]
-
     Rotationally equivariant convolution operation to be applied to feature tensor(s) of a 3D point-cloud of either
     rotation order 0 or 1, no support for rotation order 2 inputs yet. The arg 'inputs' in the call method is a variable
     length list of tensors in the order: [image, vectors, feature_tensor0, feature_tensor1, ...].
@@ -264,6 +257,17 @@ class Convolution(Layer):
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
         return tf.constant(eijk_, dtype=dtype)
 
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            radial_factory='radial_factory',
+            si_units=self.si_units,
+            activation=self.activation,
+            max_filter_order=self.max_filter_order,
+            output_orders=self.output_orders,
+        )
+        return {**base, **updates}
+
 
 class MolecularConvolution(Convolution):
     """
@@ -274,10 +278,7 @@ class MolecularConvolution(Convolution):
         feature_tensors [(batch, points, features_dim, representation_index), ...]
     Output:
         [(batch, points, si_units, representation_index), ...]
-
-    See `Convolution` superclass documentation for full explanation of layer.
     """
-
     def build(self, input_shape):
         if len(input_shape) < 4:
             raise ValueError('MolConvolution layer must be passed tensors: "one_hot", "image", "vectors", and any '
@@ -383,6 +384,14 @@ class HarmonicFilter(Layer):
                           axis=-1)
         return output
 
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            radial=self.radial,
+            filter_order=self.filter_order
+        )
+        return {**base, **updates}
+
 
 class EquivarantWeighted(Layer):
 
@@ -444,6 +453,13 @@ class SelfInteraction(EquivarantWeighted):
                 )
         return output_tensors
 
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            units=self.units
+        )
+        return {**base, **updates}
+
 
 class EquivariantActivation(EquivarantWeighted):
     """
@@ -460,15 +476,11 @@ class EquivariantActivation(EquivarantWeighted):
                  activation=None,
                  **kwargs):
         super().__init__(**kwargs)
+        if activation is None:
+            activation = 'ssp'
         if isinstance(activation, str):
             activation = tf.keras.activations.get(activation)
-        elif activation is None:
-            activation = self.shifted_softplus
         self.activation = activation
-
-    @staticmethod
-    def shifted_softplus(x):
-        return tf.math.log(0.5 * tf.exp(x) + 0.5)
 
     @tfn.wrappers.shapes_to_dict
     def build(self, input_shape):
@@ -502,6 +514,13 @@ class EquivariantActivation(EquivarantWeighted):
                         tensor * tf.expand_dims(a / norm, axis=-1)
                     )
         return output_tensors
+
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            activation=self.activation
+        )
+        return {**base, **updates}
 
 
 class Preprocessing(Layer):
@@ -543,6 +562,14 @@ class Preprocessing(Layer):
             UnitVectors()(r)
         ]
 
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            max_z=self.max_z,
+            gaussian_config=self.gaussian_config
+        )
+        return {**base, **updates}
+
 
 class UnitVectors(Layer):
     """
@@ -558,3 +585,18 @@ class UnitVectors(Layer):
         v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
         return v / den
+
+
+def shifted_softplus(x):
+    y = K.switch(
+        x < 14.,
+        K.softplus(K.switch(x < 14., x, K.zeros_like(x))),
+        x
+    )
+    return y - K.log(2.)
+
+
+tf.keras.utils.get_custom_objects().update({
+    'ssp': shifted_softplus,
+    'radial_factory': RadialFactory
+})
