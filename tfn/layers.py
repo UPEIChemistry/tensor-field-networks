@@ -421,14 +421,6 @@ class HarmonicFilter(Layer):
                           axis=-1)
         return output
 
-    def get_config(self):
-        base = super().get_config()
-        updates = dict(
-            radial=self.radial,
-            filter_order=self.filter_order
-        )
-        return {**base, **updates}
-
 
 class EquivarantWeighted(Layer):
 
@@ -510,13 +502,13 @@ class EquivariantActivation(EquivarantWeighted):
     :param activation: str, callable. Defaults to shifted_softplus. Activation to apply to input feature tensors.
     """
     def __init__(self,
-                 activation=None,
+                 activation: str = 'ssp',
                  **kwargs):
         super().__init__(**kwargs)
-        if activation is None:
-            activation = 'ssp'
         if isinstance(activation, str):
             activation = tf.keras.activations.get(activation)
+        else:
+            raise ValueError('param `activation` must be a string mapping to a registered keras activation')
         self.activation = activation
 
     @tfn.wrappers.shapes_to_dict
@@ -590,13 +582,16 @@ class Preprocessing(Layer):
             }
         self.gaussian_config = gaussian_config
         self.one_hot = partial(tf.one_hot, depth=self.max_z)
+        self.basis_function = GaussianBasis(**self.gaussian_config)
+        self.distance_matrix = DistanceMatrix()
+        self.unit_vectors = UnitVectors()
 
     def call(self, inputs, **kwargs):
         r, z = inputs
         return [
             self.one_hot(z),
-            GaussianBasis(**self.gaussian_config)(DistanceMatrix()(r)),
-            UnitVectors()(r)
+            self.basis_function(self.distance_matrix(r)),
+            self.unit_vectors(r)
         ]
 
     def get_config(self):
