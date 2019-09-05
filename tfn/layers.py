@@ -125,15 +125,30 @@ class Convolution(Layer):
         [False, True] will produce only filters of RO1, not RO0.
     """
     def __init__(self,
-                 radial_factory=None,
+                 radial_identifier: str = 'default_radial',
+                 radial_config: dict = None,
                  si_units: int = 16,
-                 activation: Union[str, Callable] = 'relu',
+                 activation: str = 'relu',
                  max_filter_order: Union[int, Iterable[bool]] = 1,
                  output_orders: list = None,
                  **kwargs):
         super().__init__(**kwargs)
-        if radial_factory is None:
-            radial_factory = RadialFactory()
+        self.radial_identifier = radial_identifier
+        if isinstance(radial_identifier, str):
+            try:
+                factory_cls = tf.keras.utils.get_custom_objects()[radial_identifier]
+            except KeyError:
+                raise ValueError('`radial_identifier`: `{}` was not found in the keras custom objects dict. '
+                                 'Ensure the identifier string is registered to the custom RadialFactory '
+                                 'class using keras.utils.get_custom_objects in the module the class is '
+                                 'defined'.format(radial_identifier))
+        else:
+            factory_cls = RadialFactory
+        self.radial_config = radial_config
+        if radial_config is None:
+            radial_factory = factory_cls()
+        else:
+            radial_factory = factory_cls.from_json(json.dumps(radial_config))
         self.radial_factory = radial_factory
         self.si_units = si_units
         self.activation = activation
@@ -156,11 +171,6 @@ class Convolution(Layer):
             filter_orders = list(range(self.max_filter_order + 1))
         else:
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
-        if not isinstance(self.radial_factory.get_radial(1, 0, 0), Layer):  # This may be costly, and not required
-            raise ValueError(
-                'passed radial_factory returned radial of type: {}, '
-                'while radial must inherit from "Layer"'.format(type(self.radial_factory()).__name__)
-            )
         if len(input_shape) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and feature tensors '
                              'of the 3D point-cloud')
@@ -286,11 +296,12 @@ class Convolution(Layer):
     def get_config(self):
         base = super().get_config()
         updates = dict(
-            radial_factory='radial_factory',
+            radial_identifier=self.radial_identifier,
+            radial_config=self.radial_factory.to_json(),
             si_units=self.si_units,
             activation=self.activation,
             max_filter_order=self.max_filter_order,
-            output_orders=self.output_orders,
+            output_orders=self.output_orders
         )
         return {**base, **updates}
 
@@ -624,5 +635,5 @@ def shifted_softplus(x):
 
 tf.keras.utils.get_custom_objects().update({
     'ssp': shifted_softplus,
-    'radial_factory': RadialFactory
+    'default_radial': RadialFactory
 })

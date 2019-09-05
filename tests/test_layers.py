@@ -1,6 +1,63 @@
 import json
+
+import pytest
 from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.utils import get_custom_objects
 from tfn import layers
+
+
+class TestConvolution:
+    def test_defaults(self, random_onehot_rbf_vectors, random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        output = layers.Convolution()(list(point_cloud) + list(features))
+        assert len(output) == 2
+
+    def test_provided_radial_config(self, random_onehot_rbf_vectors, random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        _ = layers.Convolution(
+            radial_config={'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
+        )(list(point_cloud) + list(features))
+
+    def test_incorrect_radial_identifier_raises_value_error(self,
+                                                            random_onehot_rbf_vectors,
+                                                            random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        with pytest.raises(ValueError):
+            _ = layers.Convolution(radial_identifier='foobar!')(list(point_cloud) + list(features))
+
+    def test_custom_radial(self, random_onehot_rbf_vectors, random_features_and_targets):
+        class MyRadial(layers.RadialFactory):
+            def __init__(self, num_units):
+                self.num_units = num_units
+
+            def get_radial(self, feature_dim, input_order=None, filter_order=None):
+                return Dense(feature_dim)
+
+        get_custom_objects().update({'my_radial': MyRadial})
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        conv = layers.Convolution(radial_identifier='my_radial', radial_config={'num_units': 6})
+        _ = conv(list(point_cloud) + list(features))
+        config = conv.radial_factory.to_json()
+        assert json.loads(config)['num_units'] == 6
+
+    def test_get_config(self, random_onehot_rbf_vectors, random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        conv = layers.Convolution()
+        _ = (list(point_cloud) + list(features))
+        config = conv.get_config()
+        assert config['trainable'] is True and config['si_units'] == 16
+
+
+class TestMolecularConvolution:
+    def test_defaults(self, random_onehot_rbf_vectors, random_features_and_targets):
+        features, targets = random_features_and_targets
+        output = layers.MolecularConvolution()(list(random_onehot_rbf_vectors) + list(features))
+        assert len(output) == 2
 
 
 class TestRadialFactory:
