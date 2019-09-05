@@ -48,7 +48,7 @@ class RadialFactory(object):
             Dense(
                 self.units,
                 kernel_regularizer=regularizers.l2(self.kernel_lambda),
-                bias_initializer=regularizers.l2(self.bias_lambda),
+                bias_regularizer=regularizers.l2(self.bias_lambda),
                 dynamic=self.dynamic
             )
             for _ in range(self.num_layers)
@@ -56,7 +56,7 @@ class RadialFactory(object):
             Dense(
                 feature_dim,
                 kernel_regularizer=regularizers.l2(self.kernel_lambda),
-                bias_initializer=regularizers.l2(self.bias_lambda),
+                bias_regularizer=regularizers.l2(self.bias_lambda),
                 dynamic=self.dynamic
             )
         ])
@@ -66,7 +66,7 @@ class RadialFactory(object):
 
     @classmethod
     def from_json(cls, config):
-        return cls(**config)
+        return cls(**json.loads(config))
 
 
 class Convolution(Layer):

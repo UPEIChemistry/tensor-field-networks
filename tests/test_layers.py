@@ -8,7 +8,7 @@ class TestRadialFactory:
         _ = layers.RadialFactory().get_radial(32)
 
     def test_export_and_creation_json(self):
-        config = json.loads(layers.RadialFactory().to_json())
+        config = layers.RadialFactory().to_json()
         factory = layers.RadialFactory.from_json(config)
         assert factory.num_layers == 2
         assert factory.units == 16
