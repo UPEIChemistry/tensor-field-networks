@@ -16,9 +16,8 @@ class TestConvolution:
     def test_provided_radial_config(self, random_onehot_rbf_vectors, random_features_and_targets):
         _, *point_cloud = random_onehot_rbf_vectors
         features, targets = random_features_and_targets
-        _ = layers.Convolution(
-            radial_config={'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
-        )(list(point_cloud) + list(features))
+        d = {'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
+        _ = layers.Convolution(radial_config=json.dumps(d))(list(point_cloud) + list(features))
 
     def test_incorrect_radial_identifier_raises_value_error(self,
                                                             random_onehot_rbf_vectors,
@@ -39,7 +38,8 @@ class TestConvolution:
         get_custom_objects().update({'my_radial': MyRadial})
         _, *point_cloud = random_onehot_rbf_vectors
         features, targets = random_features_and_targets
-        conv = layers.Convolution(radial_identifier='my_radial', radial_config={'num_units': 6})
+        d = {'num_units': 6}
+        conv = layers.Convolution(radial_identifier='my_radial', radial_config=json.dumps(d))
         _ = conv(list(point_cloud) + list(features))
         config = conv.radial_factory.to_json()
         assert json.loads(config)['num_units'] == 6

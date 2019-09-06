@@ -1,6 +1,7 @@
+import json
 from functools import partial
 from logging import warning
-from typing import Callable, Iterable, Union
+from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
@@ -8,9 +9,7 @@ from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis
 from tensorflow.python.keras import Sequential, backend as K, regularizers
 from tensorflow.python.keras.layers import Dense, Layer
 
-import tfn.wrappers
 from tfn import utils
-import json
 
 
 class RadialFactory(object):
@@ -24,13 +23,11 @@ class RadialFactory(object):
                  num_layers: int = 2,
                  units: int = 16,
                  kernel_lambda: float = 0.,
-                 bias_lambda: float = 0.,
-                 dynamic: bool = False):
+                 bias_lambda: float = 0.):
         self.num_layers = num_layers
         self.units = units
         self.kernel_lambda = kernel_lambda
         self.bias_lambda = bias_lambda
-        self.dynamic = dynamic
 
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         """
@@ -49,7 +46,6 @@ class RadialFactory(object):
                 self.units,
                 kernel_regularizer=regularizers.l2(self.kernel_lambda),
                 bias_regularizer=regularizers.l2(self.bias_lambda),
-                dynamic=self.dynamic
             )
             for _ in range(self.num_layers)
         ] + [
@@ -57,7 +53,6 @@ class RadialFactory(object):
                 feature_dim,
                 kernel_regularizer=regularizers.l2(self.kernel_lambda),
                 bias_regularizer=regularizers.l2(self.bias_lambda),
-                dynamic=self.dynamic
             )
         ])
 

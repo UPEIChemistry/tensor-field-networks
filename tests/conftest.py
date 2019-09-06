@@ -11,28 +11,28 @@ from tfn.layers import MolecularConvolution, Preprocessing, SelfInteraction
 
 def pytest_addoption(parser):
     parser.addoption(
-        '--eager', action='store_true', default=False
+        '--not-eager', action='store_false', default=True
     )
     parser.addoption(
-        '--dynamic', action='store_true', default=False
+        '--not-dynamic', action='store_false', default=True
     )
 
 
 @pytest.fixture(scope='session')
 def dynamic(request):
-    return request.config.getoption('--dynamic')
+    return request.config.getoption('--not-dynamic')
 
 
 @pytest.fixture(scope='session')
 def eager(request):
-    return request.config.getoption('--eager')
+    return request.config.getoption('--not-eager')
 
 
 # ===== Data Fixtures ===== #
 
 @pytest.fixture(scope='session')
 def random_onehot_rbf_vectors():
-    one_hot = np.random.randint(0, 2, size=[2, 10, 5])
+    one_hot = np.random.randint(0, 2, size=[2, 10, 6])
     rbf = np.random.rand(2, 10, 10, 80).astype('float32')
     vectors = np.random.rand(2, 10, 10, 3).astype('float32')
     return one_hot, rbf, vectors
@@ -41,7 +41,7 @@ def random_onehot_rbf_vectors():
 @pytest.fixture(scope='session')
 def random_cartesians_and_z():
     r = np.random.rand(2, 10, 3).astype('float32')
-    z = np.random.randint(5, size=(2, 10, 1))
+    z = np.random.randint(6, size=(2, 10))
     return r, z
 
 
