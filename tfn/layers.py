@@ -523,6 +523,10 @@ class SelfInteraction(Layer, EquivariantLayer):
         )
         return {**base, **updates}
 
+    def compute_output_shape(self, input_shape):
+        if not isinstance(input_shape, list):
+            input_shape = input_shape
+        return [tf.TensorShape([s[0], s[1], self.units, s[-1]]) for s in input_shape]
 
 class EquivariantActivation(Layer, EquivariantLayer):
     """
@@ -539,8 +543,10 @@ class EquivariantActivation(Layer, EquivariantLayer):
                  activation: str = 'ssp',
                  **kwargs):
         super().__init__(**kwargs)
-        self._activation = activation
+        if activation is None:
+            activation = 'ssp'
         if isinstance(activation, str):
+            self._activation = activation
             activation = tf.keras.activations.get(activation)
         else:
             raise ValueError('param `activation` must be a string mapping to a registered keras activation')
@@ -587,6 +593,9 @@ class EquivariantActivation(Layer, EquivariantLayer):
             activation=self._activation
         )
         return {**base, **updates}
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
 
 class Preprocessing(Layer):
