@@ -5,9 +5,10 @@ from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
-from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis
-from tensorflow.python.keras import Sequential, backend as K, regularizers
-from tensorflow.python.keras.layers import Dense, Layer
+from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis, OneHot
+from tensorflow.python.keras import Sequential, backend as K, regularizers, Model
+from tensorflow.python.keras.layers import Dense, Layer, Lambda
+from tensorflow.python.keras.models import model_from_json
 
 from tfn import utils
 
@@ -23,7 +24,8 @@ class RadialFactory(object):
                  num_layers: int = 2,
                  units: int = 16,
                  kernel_lambda: float = 0.,
-                 bias_lambda: float = 0.):
+                 bias_lambda: float = 0.,
+                 **kwargs):
         self.num_layers = num_layers
         self.units = units
         self.kernel_lambda = kernel_lambda
@@ -57,6 +59,7 @@ class RadialFactory(object):
         ])
 
     def to_json(self):
+        self.__dict__['type'] = type(self).__name__
         return json.dumps(self.__dict__)
 
     @classmethod
@@ -142,30 +145,28 @@ class Convolution(Layer, EquivariantLayer):
         [False, True] will produce only filters of RO1, not RO0.
     """
     def __init__(self,
-                 radial_identifier: str = 'default_radial',
-                 radial_config: dict = None,
+                 radial_factory: Union[RadialFactory, str] = None,
                  si_units: int = 16,
                  activation: str = 'relu',
                  max_filter_order: Union[int, Iterable[bool]] = 1,
                  output_orders: list = None,
                  **kwargs):
+        factory_kwargs = kwargs.pop('factory_kwargs', {})
         super().__init__(**kwargs)
-        self.radial_identifier = radial_identifier
-        if isinstance(radial_identifier, str):
+        if isinstance(radial_factory, str):
             try:
-                factory_cls = tf.keras.utils.get_custom_objects()[radial_identifier]
-            except KeyError:
-                raise ValueError('`radial_identifier`: `{}` was not found in the keras custom objects dict. '
-                                 'Ensure the identifier string is registered to the custom RadialFactory '
-                                 'class using keras.utils.get_custom_objects in the module the class is '
-                                 'defined'.format(radial_identifier))
+                config = json.loads(radial_factory)
+            except ValueError:
+                radial_factory = tf.keras.utils.get_custom_objects()[radial_factory](**factory_kwargs)
+            else:
+                radial_factory = self._initialize_factory(config)
+        elif isinstance(radial_factory, RadialFactory):
+            pass
+        elif radial_factory is None:
+            radial_factory = RadialFactory()
         else:
-            factory_cls = RadialFactory
-        self.radial_config = radial_config
-        if radial_config is None:
-            radial_factory = factory_cls()
-        else:
-            radial_factory = factory_cls.from_json(json.dumps(radial_config))
+            raise ValueError('arg `radial_factory` was of type {}, which is not supported. Read layer docs to see '
+                             'what types are allowed for `radial_factory`'.format(type(radial_factory).__name__))
         self.radial_factory = radial_factory
         self.si_units = si_units
         self.activation = activation
@@ -177,6 +178,21 @@ class Convolution(Layer, EquivariantLayer):
         self._filters = {}
         self._si_layer = None
         self._activation_layer = None
+
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            radial_factory=self.radial_factory.to_json(),
+            si_units=self.si_units,
+            activation=self.activation,
+            max_filter_order=self.max_filter_order,
+            output_orders=self.output_orders
+        )
+        return {**base, **updates}
+
+    @staticmethod
+    def _initialize_factory(config: dict):
+        return tf.keras.utils.get_custom_objects()[config['type']].from_json(json.dumps(config))
 
     def build(self, input_shape):
         # Assign static block layers
@@ -212,7 +228,7 @@ class Convolution(Layer, EquivariantLayer):
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
         image, vectors, *feature_tensors = inputs
         conv_outputs = self._point_convolution(feature_tensors, image, vectors)
-        concat_outputs = self.concatenation(conv_outputs)
+        concat_outputs = self._concatenation(conv_outputs)
         si_outputs = self._self_interaction(concat_outputs)
         return self._equivariant_activation(si_outputs)
 
@@ -263,7 +279,7 @@ class Convolution(Layer, EquivariantLayer):
                              'tensor orders.')
         return output_tensors
 
-    def concatenation(self, inputs: list, axis=-2):
+    def _concatenation(self, inputs: list, axis=-2):
         nested_inputs = [
             [x for x in inputs if self.get_tensor_ro(x) == ro]
             for ro in (0, 1, 2)
@@ -294,17 +310,17 @@ class Convolution(Layer, EquivariantLayer):
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
         return tf.constant(eijk_, dtype=dtype)
 
-    def get_config(self):
-        base = super().get_config()
-        updates = dict(
-            radial_identifier=self.radial_identifier,
-            radial_config=self.radial_factory.to_json(),
-            si_units=self.si_units,
-            activation=self.activation,
-            max_filter_order=self.max_filter_order,
-            output_orders=self.output_orders
-        )
-        return {**base, **updates}
+    def compute_output_shape(self, input_shape):
+        rbf, vectors, *features = input_shape
+        mols, atoms, *_ = rbf
+        return [
+            tf.TensorShape([
+                mols,
+                atoms,
+                self.si_units,
+                self.get_representation_index_from_ro(ro)
+            ]) for ro in self.output_orders
+        ]
 
 
 class MolecularConvolution(Convolution):
