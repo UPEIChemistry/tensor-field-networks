@@ -365,15 +365,36 @@ class HarmonicFilter(Layer, EquivariantLayer):
     :param filter_order: int. What rotation order the filter is.
     """
     def __init__(self,
-                 radial,
+                 radial: Union[Model, str],
                  filter_order=0,
                  **kwargs):
         super().__init__(**kwargs)
         self.filter_order = filter_order
-        if not isinstance(radial, Layer):
-            raise ValueError('Radial must subclass Layer, but is of type: {}'.format(type(radial).__name__))
+        if isinstance(radial, str):
+            try:
+                config = json.loads(radial)
+            except ValueError:
+                radial = tf.keras.utils.get_custom_objects()[radial]
+            else:
+                radial = self._initialize_radial(config)
+        elif isinstance(radial, Layer):
+            pass
+        else:
+            raise ValueError('arg: `radial` is of type: {}')
         self.radial = radial
         self.filter_order = filter_order
+
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            radial=self.radial.to_json(),
+            filter_order=self.filter_order
+        )
+        return {**base, **updates}
+
+    @staticmethod
+    def _initialize_radial(config: dict):
+        return model_from_json(json.dumps(config))
 
     @property
     def trainable_weights(self):
@@ -384,6 +405,9 @@ class HarmonicFilter(Layer, EquivariantLayer):
             return self.radial.trainable_weights
         else:
             return []
+
+    def build(self, input_shape):
+        self.radial.build(input_shape[0])  # Radial is generated from just the image
 
     def call(self, inputs, **kwargs):
         """Generate the filter based on provided image (and vectors, depending on requested filter rotation order).
@@ -437,6 +461,17 @@ class HarmonicFilter(Layer, EquivariantLayer):
                            (tf.square(x) - tf.square(y)) / (2. * r2)],
                           axis=-1)
         return output
+
+    def compute_output_shape(self, input_shape):
+        rbf, vectors = input_shape
+        mols, atoms, *_ = rbf
+        filter_dim = self.radial.compute_output_shape()[-1]
+        return tf.TensorShape([
+            mols,
+            atoms,
+            filter_dim,
+            self.get_representation_index_from_ro(self.filter_order)
+        ])
 
 
 class SelfInteraction(Layer, EquivariantLayer):
@@ -632,5 +667,5 @@ def shifted_softplus(x):
 
 tf.keras.utils.get_custom_objects().update({
     'ssp': shifted_softplus,
-    'default_radial': RadialFactory
+    RadialFactory.__name__: RadialFactory
 })
