@@ -64,7 +64,29 @@ class RadialFactory(object):
         return cls(**json.loads(config))
 
 
-class Convolution(Layer):
+class EquivariantLayer(object):
+
+    @staticmethod
+    def get_tensor_ro(tensor):
+        """
+        Converts represenation_index (i.e. tensor.shape[-1]) to RO integer
+
+        :return: int. RO of tensor
+        """
+        try:
+            return int((tensor.shape[-1] - 1) / 2)
+        except AttributeError:
+            return int((tensor[-1] - 1) / 2)
+
+    @staticmethod
+    def get_representation_index_from_ro(ro):
+        """
+        Converts from RO to representation_index
+        """
+        return (ro * 2) + 1
+
+
+class Convolution(Layer, EquivariantLayer):
     """
     Rotationally equivariant convolution operation to be applied to feature tensor(s) of a 3D point-cloud of either
     rotation order 0 or 1, no support for rotation order 2 inputs yet. The arg 'inputs' in the call method is a variable
@@ -241,35 +263,19 @@ class Convolution(Layer):
                              'tensor orders.')
         return output_tensors
 
-    @staticmethod
-    @tfn.wrappers.inputs_to_dict
-    def concatenation(inputs: list, axis=-2):
-        return [tf.concat(tensors, axis=axis) for tensors in inputs.values()]
+    def concatenation(self, inputs: list, axis=-2):
+        nested_inputs = [
+            [x for x in inputs if self.get_tensor_ro(x) == ro]
+            for ro in (0, 1, 2)
+        ]
+        nested_inputs = [x for x in nested_inputs if x]
+        return [tf.concat(tensors, axis=axis) for tensors in nested_inputs]
 
     def _self_interaction(self, inputs):
         return self._si_layer(inputs)
 
     def _equivariant_activation(self, inputs):
         return self._activation_layer(inputs)
-
-    @staticmethod
-    def get_tensor_ro(tensor):
-        """
-        Converts represenation_index (i.e. tensor.shape[-1]) to RO integer
-
-        :return: int. RO of tensor
-        """
-        try:
-            return int((tensor.shape[-1] - 1) / 2)
-        except AttributeError:
-            return int((tensor[-1] - 1) / 2)
-
-    @staticmethod
-    def get_representation_index_from_ro(ro):
-        """
-        Converts from RO to representation_index
-        """
-        return (ro * 2) + 1
 
     @staticmethod
     def cg_coefficient(size, axis, dtype=tf.float32):
@@ -332,7 +338,7 @@ class MolecularConvolution(Convolution):
         ]
 
 
-class HarmonicFilter(Layer):
+class HarmonicFilter(Layer, EquivariantLayer):
     """
     Layer for generating filters from radial functions.
 
@@ -417,26 +423,7 @@ class HarmonicFilter(Layer):
         return output
 
 
-class EquivarantWeighted(Layer):
-
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-        self.weight_dict = {}
-
-    def add_weight_to_nested_dict(self, indices, *args, **kwargs):
-        def add_to_dict(current_dict, _indices):
-            if len(_indices) > 1:
-                new_dict = current_dict.setdefault(_indices.pop(0), {})
-                add_to_dict(new_dict, _indices)
-            else:
-                current_dict[_indices[0]] = self.add_weight(*args, **kwargs)
-
-        indices = list(indices)
-        add_to_dict(self.weight_dict, indices)
-
-
-class SelfInteraction(EquivarantWeighted):
+class SelfInteraction(Layer, EquivariantLayer):
     """
     Input:
         feature tensors [(batch, points, feature_dim, representation_index), ...]
@@ -453,28 +440,29 @@ class SelfInteraction(EquivarantWeighted):
                  **kwargs):
         super().__init__(**kwargs)
         self.units = units
+        self.kernels = None
 
-    @tfn.wrappers.shapes_to_dict
     def build(self, input_shape):
-        for (key, shapes) in input_shape.items():
-            for i, shape in enumerate(shapes):
-                self.add_weight_to_nested_dict(
-                    [key, i],
-                    name='SIKernel_RO{}_I{}'.format(str(key), str(i)),
-                    shape=(self.units, shape[-2]),
-                    regularizer=self.activity_regularizer
-                )
+        if not isinstance(input_shape, list):
+            input_shape = [input_shape]
+        self.kernels = [
+            self.add_weight(
+                name='sikernel_{}'.format( str(i)),
+                shape=(self.units, shape[-2]),
+                regularizer=self.activity_regularizer
+            ) for i, shape in enumerate(input_shape)
+        ]
         self.built = True
 
-    @tfn.wrappers.inputs_to_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
-        for key, tensors in inputs.items():
-            for i, tensor in enumerate(tensors):
-                w = self.weight_dict[key][i]
-                output_tensors.append(
-                    tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
-                )
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        for i, tensor in enumerate(inputs):
+            w = self.kernels[i]
+            output_tensors.append(
+                tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
+            )
         return output_tensors
 
     def get_config(self):
@@ -485,7 +473,7 @@ class SelfInteraction(EquivarantWeighted):
         return {**base, **updates}
 
 
-class EquivariantActivation(EquivarantWeighted):
+class EquivariantActivation(Layer, EquivariantLayer):
     """
     Input:
         feature tensors [(batch, points, feature_dim, representation_index), ...]
@@ -500,49 +488,52 @@ class EquivariantActivation(EquivarantWeighted):
                  activation: str = 'ssp',
                  **kwargs):
         super().__init__(**kwargs)
+        self._activation = activation
         if isinstance(activation, str):
             activation = tf.keras.activations.get(activation)
         else:
             raise ValueError('param `activation` must be a string mapping to a registered keras activation')
         self.activation = activation
+        self.biases = None
 
-    @tfn.wrappers.shapes_to_dict
     def build(self, input_shape):
-        for (key, shapes) in input_shape.items():
-            for i, shape in enumerate(shapes):
-                self.add_weight_to_nested_dict(
-                    [key, i],
-                    name='RTSBias_RO{}_I{}'.format(str(key), str(i)),
-                    shape=(shape[-2],),
-                    regularizer=self.activity_regularizer
-                )
+        if not isinstance(input_shape, list):
+            input_shape = [input_shape]
+        self.biases = [
+            self.add_weight(
+                name='eabias_{}'.format(str(i)),
+                shape=(shape[-2],),
+                regularizer=self.activity_regularizer
+            ) for i, shape in enumerate(input_shape)
+        ]
         self.built = True
 
-    @tfn.wrappers.inputs_to_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
-        for key, tensors in inputs.items():
-            for i, tensor in enumerate(tensors):
-                b = self.weight_dict[key][i]
-                if key == 0:
-                    b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
-                    output_tensors.append(
-                        self.activation(tensor + b)
-                    )
-                elif key == 1:
-                    norm = utils.norm_with_epsilon(tensor, axis=-1)
-                    a = self.activation(
-                        tf.nn.bias_add(norm, b)
-                    )
-                    output_tensors.append(
-                        tensor * tf.expand_dims(a / norm, axis=-1)
-                    )
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        for i, tensor in enumerate(inputs):
+            key = self.get_tensor_ro(tensor)
+            b = self.biases[i]
+            if key == 0:
+                b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
+                output_tensors.append(
+                    self.activation(tensor + b)
+                )
+            elif key == 1:
+                norm = utils.norm_with_epsilon(tensor, axis=-1)
+                a = self.activation(
+                    tf.nn.bias_add(norm, b)
+                )
+                output_tensors.append(
+                    tensor * tf.expand_dims(a / norm, axis=-1)
+                )
         return output_tensors
 
     def get_config(self):
         base = super().get_config()
         updates = dict(
-            activation=self.activation
+            activation=self._activation
         )
         return {**base, **updates}
 
