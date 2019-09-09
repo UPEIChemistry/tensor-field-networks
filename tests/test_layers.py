@@ -1,15 +1,135 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow.python.keras.layers import Conv2D, Dense
-from tensorflow.python.keras.models import Model, Sequential
+import json
 
+import pytest
+from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.utils import get_custom_objects
 from tfn import layers
 
 
+class TestRadialFactory:
+    def test_get_radial(self):
+        _ = layers.RadialFactory().get_radial(32)
+
+    def test_export_and_creation_json(self):
+        config = layers.RadialFactory().to_json()
+        factory = layers.RadialFactory.from_json(config)
+        assert factory.num_layers == 2
+        assert factory.units == 16
+
+
+class TestConvolution:
+    def test_defaults(self, random_onehot_rbf_vectors, random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        output = layers.Convolution()(list(point_cloud) + list(features))
+        assert len(output) == 2
+
+    def test_provided_radial_json(self, random_onehot_rbf_vectors, random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        d = {'type': 'RadialFactory', 'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
+        _ = layers.Convolution(radial_factory=json.dumps(d))(list(point_cloud) + list(features))
+
+    def test_provided_radial_string(self,
+                                    random_onehot_rbf_vectors,
+                                    random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        conv = layers.Convolution(radial_factory='RadialFactory')
+        _ = conv(list(point_cloud) + list(features))
+        config = json.loads(conv.radial_factory.to_json())
+        assert config['type'] == 'RadialFactory'
+        assert config['units'] == 16
+
+    def test_provided_radial_string_and_kwargs(self,
+                                               random_onehot_rbf_vectors,
+                                               random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        conv = layers.Convolution(
+            radial_factory='RadialFactory',
+            factory_kwargs={'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
+        )
+        _ = conv(list(point_cloud) + list(features))
+        config = json.loads(conv.radial_factory.to_json())
+        assert config['units'] == 4
+
+    def test_custom_radial(self, random_onehot_rbf_vectors, random_features_and_targets):
+        class MyRadial(layers.RadialFactory):
+            def __init__(self, num_units):
+                self.num_units = num_units
+
+            def get_radial(self, feature_dim, input_order=None, filter_order=None):
+                return Dense(feature_dim)
+
+        get_custom_objects().update({MyRadial.__name__: MyRadial})
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        conv = layers.Convolution(radial_factory='MyRadial', factory_kwargs={'num_units': 6})
+        _ = conv(list(point_cloud) + list(features))
+        config = json.loads(conv.radial_factory.to_json())
+        assert config['type'] == 'MyRadial'
+        assert config['num_units'] == 6
+
+    def test_get_config(self, random_onehot_rbf_vectors, random_features_and_targets):
+        _, *point_cloud = random_onehot_rbf_vectors
+        features, targets = random_features_and_targets
+        conv = layers.Convolution()
+        _ = conv(list(point_cloud) + list(features))
+        config = conv.get_config()
+        assert config['trainable'] is True and config['si_units'] == 16
+
+
+class TestMolecularConvolution:
+    def test_defaults(self, random_onehot_rbf_vectors, random_features_and_targets):
+        features, targets = random_features_and_targets
+        output = layers.MolecularConvolution()(list(random_onehot_rbf_vectors) + list(features))
+        assert len(output) == 2
+
+
+class TestHarmonicFilter:
+    def test_ro0_filter(self, random_onehot_rbf_vectors):
+        _, rbf, vectors = random_onehot_rbf_vectors
+        output = layers.HarmonicFilter(
+            radial=Dense(16),
+            filter_order=0
+        )([rbf, vectors])
+        assert output.shape[-1] == 1
+
+    def test_ro1_filter(self, random_onehot_rbf_vectors):
+        _, rbf, vectors = random_onehot_rbf_vectors
+        output = layers.HarmonicFilter(
+            radial=Dense(16),
+            filter_order=1
+        )([rbf, vectors])
+        assert output.shape[-1] == 3
+
+    def test_ro2_filter(self, random_onehot_rbf_vectors):
+        _, rbf, vectors = random_onehot_rbf_vectors
+        output = layers.HarmonicFilter(
+            radial=Dense(16),
+            filter_order=2
+        )([rbf, vectors])
+        assert output.shape[-1] == 5
+
+
+class TestSelfInteraction:
+    def test_correct_output_shapes(self, random_features_and_targets):
+        inputs, targets = random_features_and_targets
+        si = layers.SelfInteraction(32)
+        outputs = si(inputs)
+        assert outputs[0].shape == (2, 10, 32, 1) and outputs[1].shape == (2, 10, 32, 3)
+
+
+class TestEquivariantActivation:
+    def test_correct_output_shapes(self, random_features_and_targets):
+        inputs, targets = random_features_and_targets
+        outputs = layers.EquivariantActivation()(inputs)
+        assert all([i.shape == o.shape for i, o in zip(inputs, outputs)])
+
+
 class TestPreprocessing:
-
-    def test_preprocessing_outputs_3_tensors(self, random_cartesians_and_z):
-
+    def test_3_output_tensors(self, random_cartesians_and_z):
         r, z = random_cartesians_and_z
         pre_block = layers.Preprocessing(
             max_z=5,
@@ -22,144 +142,3 @@ class TestPreprocessing:
         )
         outputs = pre_block([r, z])
         assert len(outputs) == 3
-
-
-class TestHarmonicFilterRotationOrders:
-    def test_ro0_filter(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(
-            radial=Dense(16),
-            filter_order=0
-        )([rbf, vectors])
-        assert output.shape[-1] == 1
-
-    def test_ro1_filter(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(
-            radial=Dense(16),
-            filter_order=1
-        )([rbf, vectors])
-        assert output.shape[-1] == 3
-
-    def test_ro2_filter(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(
-            radial=Dense(16),
-            filter_order=2
-        )([rbf, vectors])
-        assert output.shape[-1] == 5
-
-
-class TestHarmonicFilterVariousRadials:
-    def test_dense_radial_correct_output_shape(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(radial=Dense(16), filter_order=0)([rbf, vectors])
-        assert output.shape == (2, 10, 10, 16, 1)
-
-    def test_conv_radial_correct_output_shape(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        output = layers.HarmonicFilter(radial=Conv2D(16, 1), filter_order=0)([rbf, vectors])
-        assert output.shape == (2, 10, 10, 16, 1)
-
-    def test_model_radial_correct_output_shape(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        radial = Sequential([Dense(32), Dense(16)])
-        output = layers.HarmonicFilter(radial=radial, filter_order=0)([rbf, vectors])
-        assert output.shape == (2, 10, 10, 16, 1)
-
-
-class TestHarmonicFilterTrainableWeights:
-    def test_dense_radial_correct_num_trainable_weights(self, random_rbf_and_vectors):
-        rbf, vectors = random_rbf_and_vectors
-        target = np.random.rand(2, 10, 10, 16, 1)
-
-        class HFModel(Model):
-            def __init__(self):
-                super().__init__()
-                self.filter = layers.HarmonicFilter(radial=Dense(16), filter_order=0)
-
-            def call(self, inputs, training=None, mask=None):
-                return self.filter(inputs)
-
-            def compute_output_shape(self, input_shape):
-                return tf.TensorShape([2, 10, 10, 16, 1])
-
-        model = HFModel()
-        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
-        model.fit(x=[rbf, vectors], y=target)
-        assert len(model.trainable_weights) == 2
-
-
-class TestSelfInteraction:
-    class SIModel(Model):
-        def __init__(self,
-                     activity_regularizer=None,
-                     **kwargs):
-            super().__init__(**kwargs)
-            self.si = layers.SelfInteraction(32, activity_regularizer=activity_regularizer or None)
-
-        def call(self, tensors, training=None, mask=None):
-            return self.si(tensors)
-
-        def compute_output_shape(self, input_shape):
-            return [tf.TensorShape([shape[0], shape[1], 32, shape[-1]]) for shape in input_shape]
-
-    def test_correct_output_shapes(self, random_features_and_targets):
-        inputs, targets = random_features_and_targets
-        si = layers.SelfInteraction(32)
-        outputs = si(inputs)
-        assert outputs[0].shape == (2, 10, 32, 1) and outputs[1].shape == (2, 10, 32, 3)
-
-    def test_correct_num_trainable_weights(self, random_features_and_targets):
-        inputs, targets = random_features_and_targets
-        targets = np.random.rand(2, 10, 32, 1), np.random.rand(2, 10, 32, 3)
-
-        model = self.SIModel()
-        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
-        model.fit(x=inputs, y=targets)
-
-        assert len(model.trainable_weights) == 2
-
-    def test_regularization(self, random_features_and_targets):
-        inputs, targets = random_features_and_targets
-        targets = np.random.rand(2, 10, 32, 1), np.random.rand(2, 10, 32, 3)
-        model = self.SIModel(activity_regularizer=tf.keras.regularizers.l2(0.01))
-        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
-        model.fit(x=inputs, y=targets)
-
-
-class TestEquivariantActivation:
-    class ActModel(Model):
-        def __init__(self,
-                     activity_regularizer=None,
-                     **kwargs):
-            super().__init__(**kwargs)
-            self.a = layers.EquivariantActivation(activity_regularizer=activity_regularizer)
-
-        def call(self, tensors, training=None, mask=None):
-            return self.a(tensors)
-
-        def compute_output_shape(self, input_shape):
-            return [tf.TensorShape([*shape]) for shape in input_shape]
-
-    def test_correct_output_shapes(self, random_features_and_targets):
-        inputs, targets = random_features_and_targets
-        a = layers.EquivariantActivation()
-        outputs = a(inputs)
-        assert all([i.shape == o.shape for i, o in zip(inputs, outputs)])
-
-    def test_correct_num_trainable_weights(self, random_features_and_targets):
-        inputs, targets = random_features_and_targets
-        targets = [np.random.rand(*i.shape) for i in inputs]
-        model = self.ActModel()
-        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
-        model.fit(x=inputs, y=targets)
-
-        assert len(model.trainable_weights) == 2
-
-    def test_regularization(self, random_features_and_targets):
-        inputs, targets = random_features_and_targets
-        targets = [np.random.rand(*i.shape) for i in inputs]
-        model = self.ActModel(activity_regularizer=tf.keras.regularizers.l2(0.01))
-        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
-        model.fit(x=inputs, y=targets)

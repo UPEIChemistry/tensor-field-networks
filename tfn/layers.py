@@ -1,22 +1,36 @@
+import json
 from functools import partial
 from logging import warning
-from typing import Callable, Iterable, Union
+from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
-from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis
-from tensorflow.python.keras import Sequential, backend as K, regularizers
-from tensorflow.python.keras.layers import Dense, Layer
+from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis, OneHot
+from tensorflow.python.keras import Sequential, backend as K, regularizers, Model
+from tensorflow.python.keras.layers import Dense, Layer, Lambda
+from tensorflow.python.keras.models import model_from_json
 
-import tfn.wrappers
 from tfn import utils
 
 
 class RadialFactory(object):
     """
     Default factory class for supplying radial functions to a Convolution layer. Subclass this factory and override its
-    'get_radial' method to return custom radial instances/templates.
+    `get_radial` method to return custom radial instances/templates. You must also override the `to_json` and
+    `from_json` and register any custom `RadialFactory` classes to a unique string in the keras global custom objects
+    dict.
     """
+    def __init__(self,
+                 num_layers: int = 2,
+                 units: int = 16,
+                 kernel_lambda: float = 0.,
+                 bias_lambda: float = 0.,
+                 **kwargs):
+        self.num_layers = num_layers
+        self.units = units
+        self.kernel_lambda = kernel_lambda
+        self.bias_lambda = bias_lambda
+
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         """
         Factory method for obtaining radial functions of a specified architecture, or an instance of a radial function
@@ -24,26 +38,58 @@ class RadialFactory(object):
 
         :param feature_dim: Dimension of the feature tensor being point convolved with the filter produced by this
             radial function. Use to ensure radial function outputs a filter of shape (points, feature_dim, filter_order)
-        :param input_order: Optional. Rotation order of the of the feature tensor point convolved with the filter produced
-            by this radial function
+        :param input_order: Optional. Rotation order of the of the feature tensor point convolved with the filter
+            produced by this radial function
         :param filter_order: Optional. Rotation order of the filter being produced by this radial function.
         :return: Keras Layer object, or subclass of Layer. Must have attr dynamic == True and trainable == True.
         """
         return Sequential([
             Dense(
-                32,
-                kernel_regularizer=regularizers.l2(0.01),
-                bias_regularizer=regularizers.l2(0.01)
-            ),
+                self.units,
+                kernel_regularizer=regularizers.l2(self.kernel_lambda),
+                bias_regularizer=regularizers.l2(self.bias_lambda),
+            )
+            for _ in range(self.num_layers)
+        ] + [
             Dense(
                 feature_dim,
-                kernel_regularizer=regularizers.l2(0.01),
-                bias_regularizer=regularizers.l2(0.01)
+                kernel_regularizer=regularizers.l2(self.kernel_lambda),
+                bias_regularizer=regularizers.l2(self.bias_lambda),
             )
         ])
 
+    def to_json(self):
+        self.__dict__['type'] = type(self).__name__
+        return json.dumps(self.__dict__)
 
-class Convolution(Layer):
+    @classmethod
+    def from_json(cls, config):
+        return cls(**json.loads(config))
+
+
+class EquivariantLayer(object):
+
+    @staticmethod
+    def get_tensor_ro(tensor):
+        """
+        Converts represenation_index (i.e. tensor.shape[-1]) to RO integer
+
+        :return: int. RO of tensor
+        """
+        try:
+            return int((tensor.shape[-1] - 1) / 2)
+        except AttributeError:
+            return int((tensor[-1] - 1) / 2)
+
+    @staticmethod
+    def get_representation_index_from_ro(ro):
+        """
+        Converts from RO to representation_index
+        """
+        return (ro * 2) + 1
+
+
+class Convolution(Layer, EquivariantLayer):
     """
     Rotationally equivariant convolution operation to be applied to feature tensor(s) of a 3D point-cloud of either
     rotation order 0 or 1, no support for rotation order 2 inputs yet. The arg 'inputs' in the call method is a variable
@@ -99,15 +145,28 @@ class Convolution(Layer):
         [False, True] will produce only filters of RO1, not RO0.
     """
     def __init__(self,
-                 radial_factory=None,
+                 radial_factory: Union[RadialFactory, str] = None,
                  si_units: int = 16,
-                 activation: Union[str, Callable] = 'relu',
+                 activation: str = 'relu',
                  max_filter_order: Union[int, Iterable[bool]] = 1,
                  output_orders: list = None,
                  **kwargs):
+        factory_kwargs = kwargs.pop('factory_kwargs', {})
         super().__init__(**kwargs)
-        if radial_factory is None:
+        if isinstance(radial_factory, str):
+            try:
+                config = json.loads(radial_factory)
+            except ValueError:
+                radial_factory = tf.keras.utils.get_custom_objects()[radial_factory](**factory_kwargs)
+            else:
+                radial_factory = self._initialize_factory(config)
+        elif isinstance(radial_factory, RadialFactory):
+            pass
+        elif radial_factory is None:
             radial_factory = RadialFactory()
+        else:
+            raise ValueError('arg `radial_factory` was of type {}, which is not supported. Read layer docs to see '
+                             'what types are allowed for `radial_factory`'.format(type(radial_factory).__name__))
         self.radial_factory = radial_factory
         self.si_units = si_units
         self.activation = activation
@@ -120,25 +179,41 @@ class Convolution(Layer):
         self._si_layer = None
         self._activation_layer = None
 
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            radial_factory=self.radial_factory.to_json(),
+            si_units=self.si_units,
+            activation=self.activation,
+            max_filter_order=self.max_filter_order,
+            output_orders=self.output_orders
+        )
+        return {**base, **updates}
+
+    @staticmethod
+    def _initialize_factory(config: dict):
+        return tf.keras.utils.get_custom_objects()[config['type']].from_json(json.dumps(config))
+
     def build(self, input_shape):
-        # Assign static block layers
+        # Validate input_shape
+        if len(input_shape) < 3:
+            raise ValueError('Inputs must contain tensors: "image", "vectors", and feature tensors '
+                             'of the 3D point-cloud')
+        rbf, vectors, *features = input_shape
+
+        # Assign static block layers and build
         self._si_layer = SelfInteraction(self.si_units)
         self._activation_layer = EquivariantActivation(self.activation)
+        # if not self._si_layer.built:
+        #     self._si_layer.build(features)
+        # if not self._activation_layer.built:
+        #     self._activation_layer.build(features)
 
         # Validation and parameter prepping
         if isinstance(self.max_filter_order, int):
             filter_orders = list(range(self.max_filter_order + 1))
         else:
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
-        if not isinstance(self.radial_factory.get_radial(1, 0, 0), Layer):  # This may be costly, and not required
-            raise ValueError(
-                'passed radial_factory returned radial of type: {}, '
-                'while radial must inherit from "Layer"'.format(type(self.radial_factory()).__name__)
-            )
-        if len(input_shape) < 3:
-            raise ValueError('Inputs must contain tensors: "image", "vectors", and feature tensors '
-                             'of the 3D point-cloud')
-        input_shape = input_shape[2:]
         # Assign radials to filters, and filters to self._filters dict
         self._filters = {
             self.get_tensor_ro(shape): [
@@ -151,15 +226,20 @@ class Convolution(Layer):
                     filter_order=filter_order
                 )
                 for filter_order in filter_orders if self._possible_coefficient(self.get_tensor_ro(shape), filter_order)
-            ] for shape in input_shape
+            ] for shape in features
         }
+        # Build filter layers
+        for filters in self._filters.values():
+            for hfilter in filters:
+                if not hfilter.built:
+                    hfilter.build([rbf, vectors])
 
     def call(self, inputs, **kwargs):
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
         image, vectors, *feature_tensors = inputs
         conv_outputs = self._point_convolution(feature_tensors, image, vectors)
-        concat_outputs = self.concatenation(conv_outputs)
+        concat_outputs = self._concatenation(conv_outputs)
         si_outputs = self._self_interaction(concat_outputs)
         return self._equivariant_activation(si_outputs)
 
@@ -210,35 +290,19 @@ class Convolution(Layer):
                              'tensor orders.')
         return output_tensors
 
-    @staticmethod
-    @tfn.wrappers.inputs_to_dict
-    def concatenation(inputs: list, axis=-2):
-        return [tf.concat(tensors, axis=axis) for tensors in inputs.values()]
+    def _concatenation(self, inputs: list, axis=-2):
+        nested_inputs = [
+            [x for x in inputs if self.get_tensor_ro(x) == ro]
+            for ro in (0, 1, 2)
+        ]
+        nested_inputs = [x for x in nested_inputs if x]
+        return [tf.concat(tensors, axis=axis) for tensors in nested_inputs]
 
     def _self_interaction(self, inputs):
         return self._si_layer(inputs)
 
     def _equivariant_activation(self, inputs):
         return self._activation_layer(inputs)
-
-    @staticmethod
-    def get_tensor_ro(tensor):
-        """
-        Converts represenation_index (i.e. tensor.shape[-1]) to RO integer
-
-        :return: int. RO of tensor
-        """
-        try:
-            return int((tensor.shape[-1] - 1) / 2)
-        except AttributeError:
-            return int((tensor[-1] - 1) / 2)
-
-    @staticmethod
-    def get_representation_index_from_ro(ro):
-        """
-        Converts from RO to representation_index
-        """
-        return (ro * 2) + 1
 
     @staticmethod
     def cg_coefficient(size, axis, dtype=tf.float32):
@@ -257,16 +321,17 @@ class Convolution(Layer):
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
         return tf.constant(eijk_, dtype=dtype)
 
-    def get_config(self):
-        base = super().get_config()
-        updates = dict(
-            radial_factory='radial_factory',
-            si_units=self.si_units,
-            activation=self.activation,
-            max_filter_order=self.max_filter_order,
-            output_orders=self.output_orders,
-        )
-        return {**base, **updates}
+    def compute_output_shape(self, input_shape):
+        rbf, vectors, *features = input_shape
+        mols, atoms, *_ = rbf
+        return [
+            tf.TensorShape([
+                mols,
+                atoms,
+                self.si_units,
+                self.get_representation_index_from_ro(ro)
+            ]) for ro in self.output_orders
+        ]
 
 
 class MolecularConvolution(Convolution):
@@ -300,7 +365,7 @@ class MolecularConvolution(Convolution):
         ]
 
 
-class HarmonicFilter(Layer):
+class HarmonicFilter(Layer, EquivariantLayer):
     """
     Layer for generating filters from radial functions.
 
@@ -311,15 +376,36 @@ class HarmonicFilter(Layer):
     :param filter_order: int. What rotation order the filter is.
     """
     def __init__(self,
-                 radial,
+                 radial: Union[Model, str],
                  filter_order=0,
                  **kwargs):
         super().__init__(**kwargs)
         self.filter_order = filter_order
-        if not isinstance(radial, Layer):
-            raise ValueError('Radial must subclass Layer, but is of type: {}'.format(type(radial).__name__))
+        if isinstance(radial, str):
+            try:
+                config = json.loads(radial)
+            except ValueError:
+                radial = tf.keras.utils.get_custom_objects()[radial]
+            else:
+                radial = self._initialize_radial(config)
+        elif isinstance(radial, Layer):
+            pass
+        else:
+            raise ValueError('arg: `radial` is of type: {}')
         self.radial = radial
         self.filter_order = filter_order
+
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(
+            radial=self.radial.to_json(),
+            filter_order=self.filter_order
+        )
+        return {**base, **updates}
+
+    @staticmethod
+    def _initialize_radial(config: dict):
+        return model_from_json(json.dumps(config))
 
     @property
     def trainable_weights(self):
@@ -330,6 +416,9 @@ class HarmonicFilter(Layer):
             return self.radial.trainable_weights
         else:
             return []
+
+    def build(self, input_shape):
+        self.radial.build(input_shape[0])  # Radial is generated from just the image
 
     def call(self, inputs, **kwargs):
         """Generate the filter based on provided image (and vectors, depending on requested filter rotation order).
@@ -384,35 +473,19 @@ class HarmonicFilter(Layer):
                           axis=-1)
         return output
 
-    def get_config(self):
-        base = super().get_config()
-        updates = dict(
-            radial=self.radial,
-            filter_order=self.filter_order
-        )
-        return {**base, **updates}
+    def compute_output_shape(self, input_shape):
+        rbf, vectors = input_shape
+        mols, atoms, *_ = rbf
+        filter_dim = self.radial.compute_output_shape()[-1]
+        return tf.TensorShape([
+            mols,
+            atoms,
+            filter_dim,
+            self.get_representation_index_from_ro(self.filter_order)
+        ])
 
 
-class EquivarantWeighted(Layer):
-
-    def __init__(self,
-                 **kwargs):
-        super().__init__(**kwargs)
-        self.weight_dict = {}
-
-    def add_weight_to_nested_dict(self, indices, *args, **kwargs):
-        def add_to_dict(current_dict, _indices):
-            if len(_indices) > 1:
-                new_dict = current_dict.setdefault(_indices.pop(0), {})
-                add_to_dict(new_dict, _indices)
-            else:
-                current_dict[_indices[0]] = self.add_weight(*args, **kwargs)
-
-        indices = list(indices)
-        add_to_dict(self.weight_dict, indices)
-
-
-class SelfInteraction(EquivarantWeighted):
+class SelfInteraction(Layer, EquivariantLayer):
     """
     Input:
         feature tensors [(batch, points, feature_dim, representation_index), ...]
@@ -429,28 +502,29 @@ class SelfInteraction(EquivarantWeighted):
                  **kwargs):
         super().__init__(**kwargs)
         self.units = units
+        self.kernels = None
 
-    @tfn.wrappers.shapes_to_dict
     def build(self, input_shape):
-        for (key, shapes) in input_shape.items():
-            for i, shape in enumerate(shapes):
-                self.add_weight_to_nested_dict(
-                    [key, i],
-                    name='SIKernel_RO{}_I{}'.format(str(key), str(i)),
-                    shape=(self.units, shape[-2]),
-                    regularizer=self.activity_regularizer
-                )
+        if not isinstance(input_shape, list):
+            input_shape = [input_shape]
+        self.kernels = [
+            self.add_weight(
+                name='sikernel_{}'.format( str(i)),
+                shape=(self.units, shape[-2]),
+                regularizer=self.activity_regularizer
+            ) for i, shape in enumerate(input_shape)
+        ]
         self.built = True
 
-    @tfn.wrappers.inputs_to_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
-        for key, tensors in inputs.items():
-            for i, tensor in enumerate(tensors):
-                w = self.weight_dict[key][i]
-                output_tensors.append(
-                    tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
-                )
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        for i, tensor in enumerate(inputs):
+            w = self.kernels[i]
+            output_tensors.append(
+                tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
+            )
         return output_tensors
 
     def get_config(self):
@@ -460,8 +534,12 @@ class SelfInteraction(EquivarantWeighted):
         )
         return {**base, **updates}
 
+    def compute_output_shape(self, input_shape):
+        if not isinstance(input_shape, list):
+            input_shape = input_shape
+        return [tf.TensorShape([s[0], s[1], self.units, s[-1]]) for s in input_shape]
 
-class EquivariantActivation(EquivarantWeighted):
+class EquivariantActivation(Layer, EquivariantLayer):
     """
     Input:
         feature tensors [(batch, points, feature_dim, representation_index), ...]
@@ -473,54 +551,62 @@ class EquivariantActivation(EquivarantWeighted):
     :param activation: str, callable. Defaults to shifted_softplus. Activation to apply to input feature tensors.
     """
     def __init__(self,
-                 activation=None,
+                 activation: str = 'ssp',
                  **kwargs):
         super().__init__(**kwargs)
         if activation is None:
             activation = 'ssp'
         if isinstance(activation, str):
+            self._activation = activation
             activation = tf.keras.activations.get(activation)
+        else:
+            raise ValueError('param `activation` must be a string mapping to a registered keras activation')
         self.activation = activation
+        self.biases = None
 
-    @tfn.wrappers.shapes_to_dict
     def build(self, input_shape):
-        for (key, shapes) in input_shape.items():
-            for i, shape in enumerate(shapes):
-                self.add_weight_to_nested_dict(
-                    [key, i],
-                    name='RTSBias_RO{}_I{}'.format(str(key), str(i)),
-                    shape=(shape[-2],),
-                    regularizer=self.activity_regularizer
-                )
+        if not isinstance(input_shape, list):
+            input_shape = [input_shape]
+        self.biases = [
+            self.add_weight(
+                name='eabias_{}'.format(str(i)),
+                shape=(shape[-2],),
+                regularizer=self.activity_regularizer
+            ) for i, shape in enumerate(input_shape)
+        ]
         self.built = True
 
-    @tfn.wrappers.inputs_to_dict
     def call(self, inputs, **kwargs):
         output_tensors = []
-        for key, tensors in inputs.items():
-            for i, tensor in enumerate(tensors):
-                b = self.weight_dict[key][i]
-                if key == 0:
-                    b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
-                    output_tensors.append(
-                        self.activation(tensor + b)
-                    )
-                elif key == 1:
-                    norm = utils.norm_with_epsilon(tensor, axis=-1)
-                    a = self.activation(
-                        tf.nn.bias_add(norm, b)
-                    )
-                    output_tensors.append(
-                        tensor * tf.expand_dims(a / norm, axis=-1)
-                    )
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        for i, tensor in enumerate(inputs):
+            key = self.get_tensor_ro(tensor)
+            b = self.biases[i]
+            if key == 0:
+                b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
+                output_tensors.append(
+                    self.activation(tensor + b)
+                )
+            elif key == 1:
+                norm = utils.norm_with_epsilon(tensor, axis=-1)
+                a = self.activation(
+                    tf.nn.bias_add(norm, b)
+                )
+                output_tensors.append(
+                    tensor * tf.expand_dims(a / norm, axis=-1)
+                )
         return output_tensors
 
     def get_config(self):
         base = super().get_config()
         updates = dict(
-            activation=self.activation
+            activation=self._activation
         )
         return {**base, **updates}
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
 
 class Preprocessing(Layer):
@@ -552,14 +638,17 @@ class Preprocessing(Layer):
                 'width': 0.2, 'spacing': 0.2, 'min_value': -1.0, 'max_value': 15.0
             }
         self.gaussian_config = gaussian_config
-        self.one_hot = partial(tf.one_hot, depth=self.max_z)
+        self.one_hot = OneHot(self.max_z)
+        self.basis_function = GaussianBasis(**self.gaussian_config)
+        self.distance_matrix = DistanceMatrix()
+        self.unit_vectors = UnitVectors()
 
     def call(self, inputs, **kwargs):
         r, z = inputs
         return [
             self.one_hot(z),
-            GaussianBasis(**self.gaussian_config)(DistanceMatrix()(r)),
-            UnitVectors()(r)
+            self.basis_function(self.distance_matrix(r)),
+            self.unit_vectors(r)
         ]
 
     def get_config(self):
@@ -580,7 +669,7 @@ class UnitVectors(Layer):
     """
 
     def call(self, inputs, **kwargs):
-        i = tf.expand_dims(inputs, axis=-2)
+        i = tf.expand_dims(inputs, axis=-2)  # FIXME: These  tf functions need to be replaced with Lambdas!
         j = tf.expand_dims(inputs, axis=-3)
         v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
@@ -598,5 +687,5 @@ def shifted_softplus(x):
 
 tf.keras.utils.get_custom_objects().update({
     'ssp': shifted_softplus,
-    'radial_factory': RadialFactory
+    RadialFactory.__name__: RadialFactory
 })

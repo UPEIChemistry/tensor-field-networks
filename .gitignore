@@ -105,3 +105,4 @@ docs/html
 ######################
 keras_model_loader/kml_settings.json
 examples/*
+*.h5
