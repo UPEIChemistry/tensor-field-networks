@@ -6,7 +6,7 @@ import tensorflow as tf
 from tensorflow.python.keras.layers import BatchNormalizationV2
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.models import Model
-from tfn.layers import Preprocessing, MolecularConvolution, SelfInteraction
+from tfn.layers import Preprocessing, MolecularConvolution, SelfInteraction, RadialFactory
 from tfn.utils import rotation_matrix
 from atomic_images.layers import Unstandardization
 
@@ -167,8 +167,7 @@ class TestSerialization:
                      sigma: Union[int, list] = None,
                      trainable_offsets: bool = False,
                      embedding_units: int = 16,
-                     radial_identifier: str = 'default_radial',
-                     radial_config: str = None,
+                     radial_factory: Union[RadialFactory, str] = None,
                      num_layers: int = 3,
                      si_units: int = 16,
                      residual: bool = True,
@@ -193,8 +192,7 @@ class TestSerialization:
             self.sigma = sigma
             self.trainable_offsets = trainable_offsets
             self.embedding_units = embedding_units
-            self.radial_indentifier = radial_identifier
-            self.radial_config = radial_config
+            self.radial_factory = radial_factory
             self.num_layers = num_layers
             self.si_units = si_units
             self.residual = residual
@@ -204,13 +202,12 @@ class TestSerialization:
             self.conv_layers = [
                 MolecularConvolution(
                     name='conv_{}'.format(i),
-                    radial_identifier=self.radial_indentifier,
-                    radial_config=self.radial_config,
+                    radial_factory=self.radial_factory,
                     si_units=si_units,
                     activation=self.activation
                 ) for i in range(num_layers)
             ]
-            self.energy_layer = MolecularConvolution(self.radial_indentifier, self.radial_config, 1,
+            self.energy_layer = MolecularConvolution(self.radial_factory, 1,
                                                      self.activation, output_orders=[0], name='conv_energy')
 
         def call(self, inputs, training=None, mask=None):

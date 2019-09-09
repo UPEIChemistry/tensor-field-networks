@@ -195,19 +195,25 @@ class Convolution(Layer, EquivariantLayer):
         return tf.keras.utils.get_custom_objects()[config['type']].from_json(json.dumps(config))
 
     def build(self, input_shape):
-        # Assign static block layers
+        # Validate input_shape
+        if len(input_shape) < 3:
+            raise ValueError('Inputs must contain tensors: "image", "vectors", and feature tensors '
+                             'of the 3D point-cloud')
+        rbf, vectors, *features = input_shape
+
+        # Assign static block layers and build
         self._si_layer = SelfInteraction(self.si_units)
         self._activation_layer = EquivariantActivation(self.activation)
+        # if not self._si_layer.built:
+        #     self._si_layer.build(features)
+        # if not self._activation_layer.built:
+        #     self._activation_layer.build(features)
 
         # Validation and parameter prepping
         if isinstance(self.max_filter_order, int):
             filter_orders = list(range(self.max_filter_order + 1))
         else:
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
-        if len(input_shape) < 3:
-            raise ValueError('Inputs must contain tensors: "image", "vectors", and feature tensors '
-                             'of the 3D point-cloud')
-        input_shape = input_shape[2:]
         # Assign radials to filters, and filters to self._filters dict
         self._filters = {
             self.get_tensor_ro(shape): [
@@ -220,8 +226,13 @@ class Convolution(Layer, EquivariantLayer):
                     filter_order=filter_order
                 )
                 for filter_order in filter_orders if self._possible_coefficient(self.get_tensor_ro(shape), filter_order)
-            ] for shape in input_shape
+            ] for shape in features
         }
+        # Build filter layers
+        for filters in self._filters.values():
+            for hfilter in filters:
+                if not hfilter.built:
+                    hfilter.build([rbf, vectors])
 
     def call(self, inputs, **kwargs):
         if len(inputs) < 3:
@@ -627,7 +638,7 @@ class Preprocessing(Layer):
                 'width': 0.2, 'spacing': 0.2, 'min_value': -1.0, 'max_value': 15.0
             }
         self.gaussian_config = gaussian_config
-        self.one_hot = partial(tf.one_hot, depth=self.max_z)
+        self.one_hot = OneHot(self.max_z)
         self.basis_function = GaussianBasis(**self.gaussian_config)
         self.distance_matrix = DistanceMatrix()
         self.unit_vectors = UnitVectors()
@@ -658,7 +669,7 @@ class UnitVectors(Layer):
     """
 
     def call(self, inputs, **kwargs):
-        i = tf.expand_dims(inputs, axis=-2)
+        i = tf.expand_dims(inputs, axis=-2)  # FIXME: These  tf functions need to be replaced with Lambdas!
         j = tf.expand_dims(inputs, axis=-3)
         v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)

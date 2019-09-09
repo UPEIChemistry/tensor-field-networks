@@ -5,7 +5,7 @@ import tensorflow as tf
 from atomic_images.layers import Unstandardization
 from tensorflow.python.keras import Input, backend as K, Model
 
-from tfn.layers import Preprocessing, SelfInteraction, MolecularConvolution
+from tfn.layers import Preprocessing, SelfInteraction, MolecularConvolution, RadialFactory
 
 
 class Builder(object):
@@ -15,8 +15,7 @@ class Builder(object):
                  sigma: Union[int, list] = None,
                  trainable_offsets: bool = False,
                  embedding_units: int = 16,
-                 radial_identifier: str = 'default_radial',
-                 radial_config: str = None,
+                 radial_factory: Union[RadialFactory, str] = None,
                  num_layers: int = 3,
                  si_units: int = 16,
                  residual: bool = True,
@@ -42,15 +41,14 @@ class Builder(object):
         self.sigma = sigma
         self.trainable_offsets = trainable_offsets
         self.embedding_units = embedding_units
-        self.radial_indentifier = radial_identifier
-        self.radial_config = radial_config
+        self.radial_factory = radial_factory
         self.num_layers = num_layers
         self.si_units = si_units
         self.residual = residual
         self.activation = activation
         self.dynamic = dynamic
 
-    def build(self, hp):
+    def build(self):
         r = Input([10, 3], dtype='float32')
         z = Input([10, ], dtype='int32')
         point_cloud = Preprocessing(self.max_z)([r, z])  # Point cloud contains one_hot, rbf, vectors
@@ -58,8 +56,7 @@ class Builder(object):
         for i in range(self.num_layers):
             conv = MolecularConvolution(
                 name='conv_{}'.format(i),
-                radial_identifier=self.radial_indentifier,
-                radial_config=self.radial_config,
+                radial_factory=self.radial_factory,
                 si_units=self.si_units,
                 activation=self.activation,
                 dynamic=self.dynamic
@@ -73,8 +70,7 @@ class Builder(object):
                 learned_output = conv(point_cloud + learned_output)
         output = MolecularConvolution(
             name='energy_layer',
-            radial_identifier=self.radial_indentifier,
-            radial_config=self.radial_config,
+            radial_factory=self.radial_factory,
             si_units=1,  # For molecular energy output
             activation=self.activation,
             output_orders=[0]
@@ -91,7 +87,7 @@ class TestSerializability:
     def test_functional_save_model(self, random_cartesians_and_z, dynamic, eager):
         e = np.random.rand(2, 1)
         builder = Builder(max_z=6, dynamic=dynamic)
-        model = builder.build(None)
+        model = builder.build()
         model.compile(optimizer='adam', loss='mae')
         model.fit(random_cartesians_and_z, e, epochs=2)
         pred = model.predict(random_cartesians_and_z)
