@@ -109,7 +109,10 @@ class TestEquivariance:
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs
                 point_cloud = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(K.permute_dimensions(point_cloud[0], pattern=[0, 1, 3, 2]))
+                embedding = self.embedding(
+                        K.expand_dims(point_cloud[0], axis=-1),
+                        pattern=[0, 1, 3, 2]
+                    )
                 output = self.batch1(self.conv1(point_cloud + embedding)[0])
                 output = self.batch2(self.conv2(point_cloud + [output])[0])
                 output = self.batch3(self.conv3(point_cloud + [output])[0])

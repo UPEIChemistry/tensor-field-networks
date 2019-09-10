@@ -17,10 +17,10 @@ def norm_with_epsilon(x, axis=None, keepdims=False):
     :param keepdims: bool. Defaults to False.
     :return: Normalized tensor.
     """
-    return tf.sqrt(
-        tf.maximum(
-            tf.reduce_sum(
-                tf.square(x),
+    return K.sqrt(
+        K.maximum(
+            K.sum(
+                K.square(x),
                 axis=axis,
                 keepdims=keepdims
             ),

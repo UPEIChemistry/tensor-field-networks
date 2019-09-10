@@ -73,7 +73,8 @@ class Builder(object):
             radial_factory=self.radial_factory,
             si_units=1,  # For molecular energy output
             activation=self.activation,
-            output_orders=[0]
+            output_orders=[0],
+            dynamic=self.dynamic
         )(point_cloud + learned_output)
         output = K.squeeze(output[0], axis=-1)
         atomic_energies = Unstandardization(self.mu, self.sigma, trainable=self.trainable_offsets)(
@@ -88,10 +89,10 @@ class TestSerializability:
         e = np.random.rand(2, 1)
         builder = Builder(max_z=6, dynamic=dynamic)
         model = builder.build()
-        model.compile(optimizer='adam', loss='mae')
+        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
         model.fit(random_cartesians_and_z, e, epochs=2)
         pred = model.predict(random_cartesians_and_z)
-        model.save('./test_model.h5')
-        new_model = tf.keras.models.load_model('./test_model.h5')
+        tf.keras.experimental.export_saved_model(model, './test_model.tf')
+        new_model = tf.keras.models.load_model('./test_model.tf')
         new_pred = new_model.pred(random_cartesians_and_z)
         assert pred == new_pred
