@@ -13,6 +13,16 @@ from tfn import utils
 
 
 class RadialFactory(object):
+
+    def get_radial(self, feature_dim, input_order=None, filter_order=None):
+        raise NotImplementedError
+
+    def to_json(self):
+        self.__dict__['type'] = type(self).__name__
+        return json.dumps(self.__dict__)
+
+
+class DenseRadialFactory(RadialFactory):
     """
     Default factory class for supplying radial functions to a Convolution layer. Subclass this factory and override its
     `get_radial` method to return custom radial instances/templates. You must also override the `to_json` and
@@ -57,12 +67,8 @@ class RadialFactory(object):
             )
         ])
 
-    def to_json(self):
-        self.__dict__['type'] = type(self).__name__
-        return json.dumps(self.__dict__)
-
     @classmethod
-    def from_json(cls, config):
+    def from_json(cls, config: str):
         return cls(**json.loads(config))
 
 
@@ -126,7 +132,7 @@ class Convolution(Layer, EquivariantLayer):
     feature tensor RO0 and apply RO0 & RO1 filters to it, you'll have two output tensors, one RO0 and one RO1.
 
     :param radial_factory: RadialFactory object which returns a 'radial' function (a Keras Layer object). Defaults to
-        base RadialFactory which returns radials of the architecture:
+        DenseRadialFactory which returns radials of the architecture:
         Sequential([Dense(feature_dim), Dense(feature_dim)]). There are
         several requirements of this param and the radial returned by it:
         1) radial_factory must inherit from RadialFactory, i.e. it must have a 'get_radial' method.
@@ -162,7 +168,7 @@ class Convolution(Layer, EquivariantLayer):
         elif isinstance(radial_factory, RadialFactory):
             pass
         elif radial_factory is None:
-            radial_factory = RadialFactory()
+            radial_factory = DenseRadialFactory()
         else:
             raise ValueError('arg `radial_factory` was of type {}, which is not supported. Read layer docs to see '
                              'what types are allowed for `radial_factory`'.format(type(radial_factory).__name__))
@@ -693,5 +699,5 @@ def shifted_softplus(x):
 
 tf.keras.utils.get_custom_objects().update({
     'ssp': shifted_softplus,
-    RadialFactory.__name__: RadialFactory
+    DenseRadialFactory.__name__: DenseRadialFactory
 })
