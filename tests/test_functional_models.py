@@ -52,7 +52,7 @@ class Builder(object):
         r = Input([10, 3], dtype='float32')
         z = Input([10, ], dtype='int32')
         point_cloud = Preprocessing(self.max_z)([r, z])  # Point cloud contains one_hot, rbf, vectors
-        learned_output = SelfInteraction(self.embedding_units)(tf.expand_dims(point_cloud[0], axis=-1))
+        learned_output = SelfInteraction(self.embedding_units)(K.expand_dims(point_cloud[0], axis=-1))
         for i in range(self.num_layers):
             conv = MolecularConvolution(
                 name='conv_{}'.format(i),
@@ -75,7 +75,7 @@ class Builder(object):
             activation=self.activation,
             output_orders=[0]
         )(point_cloud + learned_output)
-        output = tf.squeeze(output[0], axis=-1)
+        output = K.squeeze(output[0], axis=-1)
         atomic_energies = Unstandardization(self.mu, self.sigma, trainable=self.trainable_offsets)(
             [point_cloud[0], output]
         )

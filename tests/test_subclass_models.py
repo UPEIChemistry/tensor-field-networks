@@ -34,7 +34,7 @@ class ScalarModel(Model):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(tf.expand_dims(one_hot, axis=-1))
+        embedding = self.embedding(K.expand_dims(one_hot, axis=-1))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
@@ -65,7 +65,7 @@ class VectorModel(ScalarModel):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(tf.expand_dims(one_hot, axis=-1))
+        embedding = self.embedding(K.expand_dims(one_hot, axis=-1))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
@@ -109,11 +109,11 @@ class TestEquivariance:
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs
                 point_cloud = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(tf.transpose(point_cloud[0], perm=[0, 1, 3, 2]))
+                embedding = self.embedding(K.permute_dimensions(point_cloud[0], pattern=[0, 1, 3, 2]))
                 output = self.batch1(self.conv1(point_cloud + embedding)[0])
                 output = self.batch2(self.conv2(point_cloud + [output])[0])
                 output = self.batch3(self.conv3(point_cloud + [output])[0])
-                return tf.reduce_sum(
+                return K.sum(
                     output, axis=-2
                 )
 
@@ -144,12 +144,12 @@ class TestEnergyModels:
                 r, z = inputs  # (batch, points, 3) and (batch, points)
                 # Slice r, z for single mol
                 one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
+                embedding = self.embedding(K.permute_dimensions(one_hot, pattern=[0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [x + y for x, y in zip(output, self.conv2([one_hot, rbf, vectors] + output))]
                 output = self.conv3([one_hot, rbf, vectors] + output)
                 assert len(output) == 1  # Combining things properly
-                return tf.reduce_sum(tf.reduce_sum(output[0], axis=-2), axis=-2)
+                return K.sum(K.sum(output[0], axis=-2), axis=-2)
 
         cartesians = np.random.rand(2, 10, 3).astype('float32')
         atomic_nums = np.random.randint(0, 5, size=(2, 10, 1))
@@ -213,7 +213,7 @@ class TestSerialization:
         def call(self, inputs, training=None, mask=None):
             r, z = inputs
             point_cloud = Preprocessing(self.max_z)([r, z])  # Point cloud contains one_hot, rbf, vectors
-            learned_output = self.embedding(tf.expand_dims(point_cloud[0], axis=-1))
+            learned_output = self.embedding(K.expand_dims(point_cloud[0], axis=-1))
             for i, conv in enumerate(self.conv_layers):
                 if i == 0:
                     learned_output = conv(point_cloud + learned_output)
@@ -223,7 +223,7 @@ class TestSerialization:
                 else:
                     learned_output = conv(point_cloud + learned_output)
                 output = self.energy_layer(point_cloud + learned_output)
-                output = tf.squeeze(output[0], axis=-1)
+                output = K.squeeze(output[0], axis=-1)
                 atomic_energies = Unstandardization(self.mu, self.sigma, trainable=self.trainable_offsets)(
                     [point_cloud[0], output]
                 )

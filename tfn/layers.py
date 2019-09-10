@@ -1,5 +1,4 @@
 import json
-from functools import partial
 from logging import warning
 from typing import Iterable, Union
 
@@ -277,7 +276,9 @@ class Convolution(Layer, EquivariantLayer):
                 )
                 if coefficient is not False:
                     output_tensors.append(
-                        tf.einsum('ijk,mabfj,mbfk->mafi', coefficient, hfilter, tensor)
+                        Lambda(
+                            lambda x: tf.einsum('ijk,mabfj,mbfk->mafi', *x)
+                        )([coefficient, hfilter, tensor])
                     )
                 else:
                     warning('Unable to find appropriate combination: {} x {} -> {}, skipping...'.format(
@@ -296,7 +297,7 @@ class Convolution(Layer, EquivariantLayer):
             for ro in (0, 1, 2)
         ]
         nested_inputs = [x for x in nested_inputs if x]
-        return [tf.concat(tensors, axis=axis) for tensors in nested_inputs]
+        return [K.concatenate(tensors, axis=axis) for tensors in nested_inputs]
 
     def _self_interaction(self, inputs):
         return self._si_layer(inputs)
@@ -305,24 +306,24 @@ class Convolution(Layer, EquivariantLayer):
         return self._activation_layer(inputs)
 
     @staticmethod
-    def cg_coefficient(size, axis, dtype=tf.float32):
+    def cg_coefficient(size, axis, dtype='float32'):
         """
         Clebsch-Gordan coefficient of varying size and shape.
         """
-        return tf.expand_dims(tf.eye(size, dtype=dtype), axis=axis)
+        return K.expand_dims(K.eye(size, dtype=dtype), axis=axis)
 
     @staticmethod
-    def lc_tensor(dtype=tf.float32):
+    def lc_tensor(dtype='float32'):
         """
         Constant Levi-Civita tensor.
         """
         eijk_ = np.zeros((3, 3, 3))
         eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
-        return tf.constant(eijk_, dtype=dtype)
+        return K.constant(eijk_, dtype=dtype)
 
     def compute_output_shape(self, input_shape):
-        rbf, vectors, *features = input_shape
+        rbf, *_ = input_shape
         mols, atoms, *_ = rbf
         return [
             tf.TensorShape([
@@ -430,27 +431,27 @@ class HarmonicFilter(Layer, EquivariantLayer):
         image, vectors = inputs
         if self.filter_order == 0:
             # (batch, points, points, filter_dim, 1)
-            return tf.expand_dims(self.radial(image), axis=-1)
+            return K.expand_dims(self.radial(image), axis=-1)
         elif self.filter_order == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # (batch, points, points, filter_dim, 3)
-            return tf.expand_dims(vectors, axis=-2) * tf.expand_dims(masked_radial, axis=-1)
+            return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
         elif self.filter_order == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # (batch, points, points, filter_dim, 5)
-            return tf.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * tf.expand_dims(masked_radial, axis=-1)
+            return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * K.expand_dims(masked_radial, axis=-1)
         else:
             raise ValueError('Unsupported RO passed for filter_order, only capable of supplying filters of up to and '
                              'including RO2.')
 
     @staticmethod
     def mask_radial(radial, vectors):
-        norm = tf.norm(vectors, axis=-1)
-        condition = tf.expand_dims(norm < K.epsilon(), axis=-1)
-        tile = tf.tile(condition, [1, 1, 1, radial.shape[-1]])
+        norm = Lambda(lambda x: tf.norm(x, axis=-1))(vectors)
+        condition = K.expand_dims(norm < K.epsilon(), axis=-1)
+        tile = K.tile(condition, [1, 1, 1, radial.shape[-1]])
 
         # (batch, points, points, output_dim)
-        return tf.where(tile, tf.zeros_like(radial), radial)
+        return K.switch(tile, K.zeros_like(radial), radial)
 
     @staticmethod
     def l2_spherical_harmonic(tensor):
@@ -463,20 +464,21 @@ class HarmonicFilter(Layer, EquivariantLayer):
         x = tensor[:, :, :, 0]
         y = tensor[:, :, :, 1]
         z = tensor[:, :, :, 2]
-        r2 = tf.maximum(tf.reduce_sum(tf.square(tensor), axis=-1), K.epsilon())
+        r2 = K.maximum(K.sum(K.square(tensor), axis=-1), K.epsilon())
         # return : (points, points, 5)
-        output = tf.stack([x * y / r2,
-                           y * z / r2,
-                           (-tf.square(x) - tf.square(y) + 2. * tf.square(z)) / (2 * np.sqrt(3) * r2),
-                           z * x / r2,
-                           (tf.square(x) - tf.square(y)) / (2. * r2)],
-                          axis=-1)
+        output = K.stack([
+            x * y / r2,
+            y * z / r2,
+            (-K.square(x) - K.square(y) + 2. * K.square(z)) / (2 * K.sqrt(K.constant(3)) * r2),
+            z * x / r2,
+            (K.square(x) - K.square(y)) / (2. * r2)
+        ], axis=-1)
         return output
 
     def compute_output_shape(self, input_shape):
         rbf, vectors = input_shape
         mols, atoms, *_ = rbf
-        filter_dim = self.radial.compute_output_shape()[-1]
+        filter_dim = self.radial.compute_output_shape(rbf)[-1]
         return tf.TensorShape([
             mols,
             atoms,
@@ -523,7 +525,10 @@ class SelfInteraction(Layer, EquivariantLayer):
         for i, tensor in enumerate(inputs):
             w = self.kernels[i]
             output_tensors.append(
-                tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
+                K.permute_dimensions(
+                    Lambda(lambda x: tf.einsum('mafi,gf->maig', *x))([tensor, w]),
+                    pattern=[0, 1, 3, 2]
+                )
             )
         return output_tensors
 
@@ -538,6 +543,7 @@ class SelfInteraction(Layer, EquivariantLayer):
         if not isinstance(input_shape, list):
             input_shape = input_shape
         return [tf.TensorShape([s[0], s[1], self.units, s[-1]]) for s in input_shape]
+
 
 class EquivariantActivation(Layer, EquivariantLayer):
     """
@@ -584,17 +590,17 @@ class EquivariantActivation(Layer, EquivariantLayer):
             key = self.get_tensor_ro(tensor)
             b = self.biases[i]
             if key == 0:
-                b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
+                b = K.expand_dims(K.expand_dims(b, axis=0), axis=-1)
                 output_tensors.append(
                     self.activation(tensor + b)
                 )
             elif key == 1:
                 norm = utils.norm_with_epsilon(tensor, axis=-1)
                 a = self.activation(
-                    tf.nn.bias_add(norm, b)
+                    K.bias_add(norm, b)
                 )
                 output_tensors.append(
-                    tensor * tf.expand_dims(a / norm, axis=-1)
+                    tensor * K.expand_dims(a / norm, axis=-1)
                 )
         return output_tensors
 
@@ -669,8 +675,8 @@ class UnitVectors(Layer):
     """
 
     def call(self, inputs, **kwargs):
-        i = tf.expand_dims(inputs, axis=-2)  # FIXME: These  tf functions need to be replaced with Lambdas!
-        j = tf.expand_dims(inputs, axis=-3)
+        i = K.expand_dims(inputs, axis=-2)
+        j = K.expand_dims(inputs, axis=-3)
         v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
         return v / den
