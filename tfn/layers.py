@@ -221,7 +221,7 @@ class Convolution(Layer, EquivariantLayer):
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
         # Assign radials to filters, and filters to self._filters dict
         self._filters = {
-            self.get_tensor_ro(shape): [
+            str(self.get_tensor_ro(shape)): [
                 HarmonicFilter(
                     self.radial_factory.get_radial(
                         shape[-2],
@@ -242,8 +242,9 @@ class Convolution(Layer, EquivariantLayer):
     def call(self, inputs, **kwargs):
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
-        image, vectors, *feature_tensors = inputs
-        conv_outputs = self._point_convolution(feature_tensors, image, vectors)
+        image, vectors, *features = inputs
+        point_conv_inputs = [image, vectors] + list(features)
+        conv_outputs = self._point_convolution(point_conv_inputs)
         concat_outputs = self._concatenation(conv_outputs)
         si_outputs = self._self_interaction(concat_outputs)
         return self._equivariant_activation(si_outputs)
@@ -267,16 +268,15 @@ class Convolution(Layer, EquivariantLayer):
         else:
             return False
 
-    def _point_convolution(self, inputs, image, vectors):
+    def _point_convolution(self, inputs: list):
         output_tensors = []
-        if not isinstance(inputs, list):
-            inputs = [inputs]
-        for tensor in inputs:
-            input_order = self.get_tensor_ro(tensor)
-            for hfilter in [f([image, vectors]) for f in self._filters[input_order]]:
+        image, vectors, *features = inputs
+        for tensor in features:
+            feature_order = self.get_tensor_ro(tensor)
+            for hfilter in [f([image, vectors]) for f in self._filters[str(feature_order)]]:
                 filter_order = self.get_tensor_ro(hfilter)
                 coefficient = self._possible_coefficient(
-                    input_order,
+                    feature_order,
                     filter_order,
                     no_coefficients=False
                 )
@@ -288,7 +288,7 @@ class Convolution(Layer, EquivariantLayer):
                     )
                 else:
                     warning('Unable to find appropriate combination: {} x {} -> {}, skipping...'.format(
-                        input_order, filter_order, self.output_orders
+                        feature_order, filter_order, self.output_orders
                     ))
                     continue
 
@@ -316,7 +316,7 @@ class Convolution(Layer, EquivariantLayer):
         """
         Clebsch-Gordan coefficient of varying size and shape.
         """
-        return K.expand_dims(K.eye(size, dtype=dtype), axis=axis)
+        return K.expand_dims(tf.eye(size, dtype=dtype), axis=axis)
 
     @staticmethod
     def lc_tensor(dtype='float32'):
@@ -643,7 +643,7 @@ class Preprocessing(Layer):
                  max_z,
                  gaussian_config=None,
                  **kwargs):
-        super().__init__(trainable=False, **kwargs)
+        super().__init__(**kwargs)
         self.max_z = max_z
         if gaussian_config is None:
             gaussian_config = {
@@ -699,5 +699,14 @@ def shifted_softplus(x):
 
 tf.keras.utils.get_custom_objects().update({
     'ssp': shifted_softplus,
-    DenseRadialFactory.__name__: DenseRadialFactory
+    RadialFactory.__name__: RadialFactory,
+    DenseRadialFactory.__name__: DenseRadialFactory,
+    EquivariantLayer.__name__: EquivariantLayer,
+    Convolution.__name__: Convolution,
+    MolecularConvolution.__name__: MolecularConvolution,
+    HarmonicFilter.__name__: HarmonicFilter,
+    SelfInteraction.__name__: SelfInteraction,
+    EquivariantActivation.__name__: EquivariantActivation,
+    Preprocessing.__name__: Preprocessing,
+    UnitVectors.__name__: UnitVectors
 })
