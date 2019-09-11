@@ -1,6 +1,5 @@
 import json
 
-import pytest
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.utils import get_custom_objects
 from tfn import layers
@@ -8,11 +7,11 @@ from tfn import layers
 
 class TestRadialFactory:
     def test_get_radial(self):
-        _ = layers.RadialFactory().get_radial(32)
+        _ = layers.DenseRadialFactory().get_radial(32)
 
     def test_export_and_creation_json(self):
-        config = layers.RadialFactory().to_json()
-        factory = layers.RadialFactory.from_json(config)
+        config = layers.DenseRadialFactory().to_json()
+        factory = layers.DenseRadialFactory.from_json(config)
         assert factory.num_layers == 2
         assert factory.units == 16
 
@@ -27,7 +26,7 @@ class TestConvolution:
     def test_provided_radial_json(self, random_onehot_rbf_vectors, random_features_and_targets):
         _, *point_cloud = random_onehot_rbf_vectors
         features, targets = random_features_and_targets
-        d = {'type': 'RadialFactory', 'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
+        d = {'type': 'DenseRadialFactory', 'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
         _ = layers.Convolution(radial_factory=json.dumps(d))(list(point_cloud) + list(features))
 
     def test_provided_radial_string(self,
@@ -35,10 +34,10 @@ class TestConvolution:
                                     random_features_and_targets):
         _, *point_cloud = random_onehot_rbf_vectors
         features, targets = random_features_and_targets
-        conv = layers.Convolution(radial_factory='RadialFactory')
+        conv = layers.Convolution(radial_factory='DenseRadialFactory')
         _ = conv(list(point_cloud) + list(features))
         config = json.loads(conv.radial_factory.to_json())
-        assert config['type'] == 'RadialFactory'
+        assert config['type'] == 'DenseRadialFactory'
         assert config['units'] == 16
 
     def test_provided_radial_string_and_kwargs(self,
@@ -47,7 +46,7 @@ class TestConvolution:
         _, *point_cloud = random_onehot_rbf_vectors
         features, targets = random_features_and_targets
         conv = layers.Convolution(
-            radial_factory='RadialFactory',
+            radial_factory='DenseRadialFactory',
             factory_kwargs={'num_layers': 3, 'units': 4, 'kernel_lambda': 0.01}
         )
         _ = conv(list(point_cloud) + list(features))
@@ -55,12 +54,17 @@ class TestConvolution:
         assert config['units'] == 4
 
     def test_custom_radial(self, random_onehot_rbf_vectors, random_features_and_targets):
-        class MyRadial(layers.RadialFactory):
+        class MyRadial(layers.DenseRadialFactory):
             def __init__(self, num_units):
+                super().__init__()
                 self.num_units = num_units
 
             def get_radial(self, feature_dim, input_order=None, filter_order=None):
                 return Dense(feature_dim)
+
+            @classmethod
+            def from_json(cls, json_str: str):
+                return cls(**json.loads(json_str))
 
         get_custom_objects().update({MyRadial.__name__: MyRadial})
         _, *point_cloud = random_onehot_rbf_vectors

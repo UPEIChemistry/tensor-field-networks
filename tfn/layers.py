@@ -1,5 +1,4 @@
 import json
-from functools import partial
 from logging import warning
 from typing import Iterable, Union
 
@@ -14,6 +13,16 @@ from tfn import utils
 
 
 class RadialFactory(object):
+
+    def get_radial(self, feature_dim, input_order=None, filter_order=None):
+        raise NotImplementedError
+
+    def to_json(self):
+        self.__dict__['type'] = type(self).__name__
+        return json.dumps(self.__dict__)
+
+
+class DenseRadialFactory(RadialFactory):
     """
     Default factory class for supplying radial functions to a Convolution layer. Subclass this factory and override its
     `get_radial` method to return custom radial instances/templates. You must also override the `to_json` and
@@ -58,12 +67,8 @@ class RadialFactory(object):
             )
         ])
 
-    def to_json(self):
-        self.__dict__['type'] = type(self).__name__
-        return json.dumps(self.__dict__)
-
     @classmethod
-    def from_json(cls, config):
+    def from_json(cls, config: str):
         return cls(**json.loads(config))
 
 
@@ -127,7 +132,7 @@ class Convolution(Layer, EquivariantLayer):
     feature tensor RO0 and apply RO0 & RO1 filters to it, you'll have two output tensors, one RO0 and one RO1.
 
     :param radial_factory: RadialFactory object which returns a 'radial' function (a Keras Layer object). Defaults to
-        base RadialFactory which returns radials of the architecture:
+        DenseRadialFactory which returns radials of the architecture:
         Sequential([Dense(feature_dim), Dense(feature_dim)]). There are
         several requirements of this param and the radial returned by it:
         1) radial_factory must inherit from RadialFactory, i.e. it must have a 'get_radial' method.
@@ -163,7 +168,7 @@ class Convolution(Layer, EquivariantLayer):
         elif isinstance(radial_factory, RadialFactory):
             pass
         elif radial_factory is None:
-            radial_factory = RadialFactory()
+            radial_factory = DenseRadialFactory()
         else:
             raise ValueError('arg `radial_factory` was of type {}, which is not supported. Read layer docs to see '
                              'what types are allowed for `radial_factory`'.format(type(radial_factory).__name__))
@@ -216,7 +221,7 @@ class Convolution(Layer, EquivariantLayer):
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
         # Assign radials to filters, and filters to self._filters dict
         self._filters = {
-            self.get_tensor_ro(shape): [
+            str(self.get_tensor_ro(shape)): [
                 HarmonicFilter(
                     self.radial_factory.get_radial(
                         shape[-2],
@@ -237,8 +242,9 @@ class Convolution(Layer, EquivariantLayer):
     def call(self, inputs, **kwargs):
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
-        image, vectors, *feature_tensors = inputs
-        conv_outputs = self._point_convolution(feature_tensors, image, vectors)
+        image, vectors, *features = inputs
+        point_conv_inputs = [image, vectors] + list(features)
+        conv_outputs = self._point_convolution(point_conv_inputs)
         concat_outputs = self._concatenation(conv_outputs)
         si_outputs = self._self_interaction(concat_outputs)
         return self._equivariant_activation(si_outputs)
@@ -262,26 +268,27 @@ class Convolution(Layer, EquivariantLayer):
         else:
             return False
 
-    def _point_convolution(self, inputs, image, vectors):
+    def _point_convolution(self, inputs: list):
         output_tensors = []
-        if not isinstance(inputs, list):
-            inputs = [inputs]
-        for tensor in inputs:
-            input_order = self.get_tensor_ro(tensor)
-            for hfilter in [f([image, vectors]) for f in self._filters[input_order]]:
+        image, vectors, *features = inputs
+        for tensor in features:
+            feature_order = self.get_tensor_ro(tensor)
+            for hfilter in [f([image, vectors]) for f in self._filters[str(feature_order)]]:
                 filter_order = self.get_tensor_ro(hfilter)
                 coefficient = self._possible_coefficient(
-                    input_order,
+                    feature_order,
                     filter_order,
                     no_coefficients=False
                 )
                 if coefficient is not False:
                     output_tensors.append(
-                        tf.einsum('ijk,mabfj,mbfk->mafi', coefficient, hfilter, tensor)
+                        Lambda(
+                            lambda x: tf.einsum('ijk,mabfj,mbfk->mafi', *x)
+                        )([coefficient, hfilter, tensor])
                     )
                 else:
                     warning('Unable to find appropriate combination: {} x {} -> {}, skipping...'.format(
-                        input_order, filter_order, self.output_orders
+                        feature_order, filter_order, self.output_orders
                     ))
                     continue
 
@@ -296,7 +303,7 @@ class Convolution(Layer, EquivariantLayer):
             for ro in (0, 1, 2)
         ]
         nested_inputs = [x for x in nested_inputs if x]
-        return [tf.concat(tensors, axis=axis) for tensors in nested_inputs]
+        return [K.concatenate(tensors, axis=axis) for tensors in nested_inputs]
 
     def _self_interaction(self, inputs):
         return self._si_layer(inputs)
@@ -305,24 +312,24 @@ class Convolution(Layer, EquivariantLayer):
         return self._activation_layer(inputs)
 
     @staticmethod
-    def cg_coefficient(size, axis, dtype=tf.float32):
+    def cg_coefficient(size, axis, dtype='float32'):
         """
         Clebsch-Gordan coefficient of varying size and shape.
         """
-        return tf.expand_dims(tf.eye(size, dtype=dtype), axis=axis)
+        return K.expand_dims(tf.eye(size, dtype=dtype), axis=axis)
 
     @staticmethod
-    def lc_tensor(dtype=tf.float32):
+    def lc_tensor(dtype='float32'):
         """
         Constant Levi-Civita tensor.
         """
         eijk_ = np.zeros((3, 3, 3))
         eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.
         eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
-        return tf.constant(eijk_, dtype=dtype)
+        return K.constant(eijk_, dtype=dtype)
 
     def compute_output_shape(self, input_shape):
-        rbf, vectors, *features = input_shape
+        rbf, *_ = input_shape
         mols, atoms, *_ = rbf
         return [
             tf.TensorShape([
@@ -430,27 +437,27 @@ class HarmonicFilter(Layer, EquivariantLayer):
         image, vectors = inputs
         if self.filter_order == 0:
             # (batch, points, points, filter_dim, 1)
-            return tf.expand_dims(self.radial(image), axis=-1)
+            return K.expand_dims(self.radial(image), axis=-1)
         elif self.filter_order == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # (batch, points, points, filter_dim, 3)
-            return tf.expand_dims(vectors, axis=-2) * tf.expand_dims(masked_radial, axis=-1)
+            return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
         elif self.filter_order == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
             # (batch, points, points, filter_dim, 5)
-            return tf.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * tf.expand_dims(masked_radial, axis=-1)
+            return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2) * K.expand_dims(masked_radial, axis=-1)
         else:
             raise ValueError('Unsupported RO passed for filter_order, only capable of supplying filters of up to and '
                              'including RO2.')
 
     @staticmethod
     def mask_radial(radial, vectors):
-        norm = tf.norm(vectors, axis=-1)
-        condition = tf.expand_dims(norm < K.epsilon(), axis=-1)
-        tile = tf.tile(condition, [1, 1, 1, radial.shape[-1]])
+        norm = Lambda(lambda x: tf.norm(x, axis=-1))(vectors)
+        condition = K.expand_dims(norm < K.epsilon(), axis=-1)
+        tile = K.tile(condition, [1, 1, 1, radial.shape[-1]])
 
         # (batch, points, points, output_dim)
-        return tf.where(tile, tf.zeros_like(radial), radial)
+        return K.switch(tile, K.zeros_like(radial), radial)
 
     @staticmethod
     def l2_spherical_harmonic(tensor):
@@ -463,20 +470,21 @@ class HarmonicFilter(Layer, EquivariantLayer):
         x = tensor[:, :, :, 0]
         y = tensor[:, :, :, 1]
         z = tensor[:, :, :, 2]
-        r2 = tf.maximum(tf.reduce_sum(tf.square(tensor), axis=-1), K.epsilon())
+        r2 = K.maximum(K.sum(K.square(tensor), axis=-1), K.epsilon())
         # return : (points, points, 5)
-        output = tf.stack([x * y / r2,
-                           y * z / r2,
-                           (-tf.square(x) - tf.square(y) + 2. * tf.square(z)) / (2 * np.sqrt(3) * r2),
-                           z * x / r2,
-                           (tf.square(x) - tf.square(y)) / (2. * r2)],
-                          axis=-1)
+        output = K.stack([
+            x * y / r2,
+            y * z / r2,
+            (-K.square(x) - K.square(y) + 2. * K.square(z)) / (2 * K.sqrt(K.constant(3)) * r2),
+            z * x / r2,
+            (K.square(x) - K.square(y)) / (2. * r2)
+        ], axis=-1)
         return output
 
     def compute_output_shape(self, input_shape):
         rbf, vectors = input_shape
         mols, atoms, *_ = rbf
-        filter_dim = self.radial.compute_output_shape()[-1]
+        filter_dim = self.radial.compute_output_shape(rbf)[-1]
         return tf.TensorShape([
             mols,
             atoms,
@@ -523,7 +531,10 @@ class SelfInteraction(Layer, EquivariantLayer):
         for i, tensor in enumerate(inputs):
             w = self.kernels[i]
             output_tensors.append(
-                tf.transpose(tf.einsum('mafi,gf->maig', tensor, w), perm=[0, 1, 3, 2])
+                K.permute_dimensions(
+                    Lambda(lambda x: tf.einsum('mafi,gf->maig', *x))([tensor, w]),
+                    pattern=[0, 1, 3, 2]
+                )
             )
         return output_tensors
 
@@ -538,6 +549,7 @@ class SelfInteraction(Layer, EquivariantLayer):
         if not isinstance(input_shape, list):
             input_shape = input_shape
         return [tf.TensorShape([s[0], s[1], self.units, s[-1]]) for s in input_shape]
+
 
 class EquivariantActivation(Layer, EquivariantLayer):
     """
@@ -584,17 +596,17 @@ class EquivariantActivation(Layer, EquivariantLayer):
             key = self.get_tensor_ro(tensor)
             b = self.biases[i]
             if key == 0:
-                b = tf.expand_dims(tf.expand_dims(b, axis=0), axis=-1)
+                b = K.expand_dims(K.expand_dims(b, axis=0), axis=-1)
                 output_tensors.append(
                     self.activation(tensor + b)
                 )
             elif key == 1:
                 norm = utils.norm_with_epsilon(tensor, axis=-1)
                 a = self.activation(
-                    tf.nn.bias_add(norm, b)
+                    K.bias_add(norm, b)
                 )
                 output_tensors.append(
-                    tensor * tf.expand_dims(a / norm, axis=-1)
+                    tensor * K.expand_dims(a / norm, axis=-1)
                 )
         return output_tensors
 
@@ -631,7 +643,7 @@ class Preprocessing(Layer):
                  max_z,
                  gaussian_config=None,
                  **kwargs):
-        super().__init__(trainable=False, **kwargs)
+        super().__init__(**kwargs)
         self.max_z = max_z
         if gaussian_config is None:
             gaussian_config = {
@@ -669,8 +681,8 @@ class UnitVectors(Layer):
     """
 
     def call(self, inputs, **kwargs):
-        i = tf.expand_dims(inputs, axis=-2)  # FIXME: These  tf functions need to be replaced with Lambdas!
-        j = tf.expand_dims(inputs, axis=-3)
+        i = K.expand_dims(inputs, axis=-2)
+        j = K.expand_dims(inputs, axis=-3)
         v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
         return v / den
@@ -687,5 +699,14 @@ def shifted_softplus(x):
 
 tf.keras.utils.get_custom_objects().update({
     'ssp': shifted_softplus,
-    RadialFactory.__name__: RadialFactory
+    RadialFactory.__name__: RadialFactory,
+    DenseRadialFactory.__name__: DenseRadialFactory,
+    EquivariantLayer.__name__: EquivariantLayer,
+    Convolution.__name__: Convolution,
+    MolecularConvolution.__name__: MolecularConvolution,
+    HarmonicFilter.__name__: HarmonicFilter,
+    SelfInteraction.__name__: SelfInteraction,
+    EquivariantActivation.__name__: EquivariantActivation,
+    Preprocessing.__name__: Preprocessing,
+    UnitVectors.__name__: UnitVectors
 })

@@ -6,6 +6,7 @@ import math
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.layers import Lambda
 
 
 def norm_with_epsilon(x, axis=None, keepdims=False):
@@ -17,10 +18,10 @@ def norm_with_epsilon(x, axis=None, keepdims=False):
     :param keepdims: bool. Defaults to False.
     :return: Normalized tensor.
     """
-    return tf.sqrt(
-        tf.maximum(
-            tf.reduce_sum(
-                tf.square(x),
+    return K.sqrt(
+        K.maximum(
+            K.sum(
+                K.square(x),
                 axis=axis,
                 keepdims=keepdims
             ),

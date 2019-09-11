@@ -1,12 +1,14 @@
 import json
 from typing import Union
+import shutil
+from contextlib import contextmanager
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.keras.layers import BatchNormalizationV2
 from tensorflow.python.keras import backend as K
 from tensorflow.python.keras.models import Model
-from tfn.layers import Preprocessing, MolecularConvolution, SelfInteraction, RadialFactory
+from tfn.layers import Preprocessing, MolecularConvolution, SelfInteraction, RadialFactory, DenseRadialFactory
 from tfn.utils import rotation_matrix
 from atomic_images.layers import Unstandardization
 
@@ -34,7 +36,7 @@ class ScalarModel(Model):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(tf.expand_dims(one_hot, axis=-1))
+        embedding = self.embedding(K.expand_dims(one_hot, axis=-1))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
@@ -65,7 +67,7 @@ class VectorModel(ScalarModel):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
         one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-        embedding = self.embedding(tf.expand_dims(one_hot, axis=-1))
+        embedding = self.embedding(K.expand_dims(one_hot, axis=-1))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
         output = self.conv3([one_hot, rbf, vectors] + output)
@@ -109,11 +111,14 @@ class TestEquivariance:
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs
                 point_cloud = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(tf.transpose(point_cloud[0], perm=[0, 1, 3, 2]))
+                embedding = self.embedding(
+                        K.expand_dims(point_cloud[0], axis=-1),
+                        pattern=[0, 1, 3, 2]
+                    )
                 output = self.batch1(self.conv1(point_cloud + embedding)[0])
                 output = self.batch2(self.conv2(point_cloud + [output])[0])
                 output = self.batch3(self.conv3(point_cloud + [output])[0])
-                return tf.reduce_sum(
+                return K.sum(
                     output, axis=-2
                 )
 
@@ -144,12 +149,12 @@ class TestEnergyModels:
                 r, z = inputs  # (batch, points, 3) and (batch, points)
                 # Slice r, z for single mol
                 one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
-                embedding = self.embedding(tf.transpose(one_hot, [0, 1, 3, 2]))
+                embedding = self.embedding(K.permute_dimensions(one_hot, pattern=[0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [x + y for x, y in zip(output, self.conv2([one_hot, rbf, vectors] + output))]
                 output = self.conv3([one_hot, rbf, vectors] + output)
                 assert len(output) == 1  # Combining things properly
-                return tf.reduce_sum(tf.reduce_sum(output[0], axis=-2), axis=-2)
+                return K.sum(K.sum(output[0], axis=-2), axis=-2)
 
         cartesians = np.random.rand(2, 10, 3).astype('float32')
         atomic_nums = np.random.randint(0, 5, size=(2, 10, 1))
@@ -160,6 +165,15 @@ class TestEnergyModels:
 
 
 class TestSerialization:
+
+    @staticmethod
+    @contextmanager
+    def temp_file(path):
+        try:
+            yield path
+        finally:
+            shutil.rmtree(path, ignore_errors=True)
+
     class SerializeModel(Model):
         def __init__(self,
                      max_z: int,
@@ -167,7 +181,7 @@ class TestSerialization:
                      sigma: Union[int, list] = None,
                      trainable_offsets: bool = False,
                      embedding_units: int = 16,
-                     radial_factory: Union[RadialFactory, str] = None,
+                     radial_factory: Union[RadialFactory, str] = DenseRadialFactory(),
                      num_layers: int = 3,
                      si_units: int = 16,
                      residual: bool = True,
@@ -198,22 +212,24 @@ class TestSerialization:
             self.residual = residual
             self.activation = activation
 
-            self.embedding = SelfInteraction(embedding_units)
+            self.preprocessing = Preprocessing(self.max_z)
+            self.embedding = SelfInteraction(self.embedding_units)
             self.conv_layers = [
                 MolecularConvolution(
                     name='conv_{}'.format(i),
                     radial_factory=self.radial_factory,
-                    si_units=si_units,
+                    si_units=self.si_units,
                     activation=self.activation
-                ) for i in range(num_layers)
+                ) for i in range(self.num_layers)
             ]
             self.energy_layer = MolecularConvolution(self.radial_factory, 1,
                                                      self.activation, output_orders=[0], name='conv_energy')
+            self.unstandardize = Unstandardization(self.mu, self.sigma, trainable=self.trainable_offsets)
 
         def call(self, inputs, training=None, mask=None):
             r, z = inputs
-            point_cloud = Preprocessing(self.max_z)([r, z])  # Point cloud contains one_hot, rbf, vectors
-            learned_output = self.embedding(tf.expand_dims(point_cloud[0], axis=-1))
+            point_cloud = self.preprocessing([r, z])  # Point cloud contains one_hot, rbf, vectors
+            learned_output = self.embedding(K.expand_dims(point_cloud[0], axis=-1))
             for i, conv in enumerate(self.conv_layers):
                 if i == 0:
                     learned_output = conv(point_cloud + learned_output)
@@ -223,62 +239,58 @@ class TestSerialization:
                 else:
                     learned_output = conv(point_cloud + learned_output)
                 output = self.energy_layer(point_cloud + learned_output)
-                output = tf.squeeze(output[0], axis=-1)
-                atomic_energies = Unstandardization(self.mu, self.sigma, trainable=self.trainable_offsets)(
-                    [point_cloud[0], output]
-                )
+                output = K.squeeze(output[0], axis=-1)
+                atomic_energies = self.unstandardize([point_cloud[0], output])
                 self._update_config()
-                return K.sum(
-                        K.sum(
-                            atomic_energies,
-                            axis=-2
-                        ),
-                        axis=-2
-                    )
+                return K.sum(atomic_energies, axis=1)
 
         def _update_config(self):
             configs = [json.loads(c.radial_factory.to_json()) for c in self.conv_layers]
-            self.radial_config = {c:v for config in configs for c, v in config.items()}
+            self.radial_config = {c: v for config in configs for c, v in config.items()}
 
         def compute_output_shape(self, input_shape):
             mols, atoms, _ = input_shape[0]
             return tf.TensorShape([mols, 1])
 
         def get_config(self):
-            mu = self.init_mu
+            base = super().get_config()
+            mu = self.mu
             if isinstance(mu, (np.ndarray, np.generic)):
                 if len(mu.shape) > 0:
                     mu = mu.tolist()
                 else:
                     mu = float(mu)
 
-            sigma = self.init_sigma
+            sigma = self.sigma
             if isinstance(sigma, (np.ndarray, np.generic)):
                 if len(sigma.shape) > 0:
                     sigma = sigma.tolist()
                 else:
                     sigma = float(sigma)
-            return dict(
+            updates = dict(
                 max_z=self.max_z,
                 mu=mu,
                 sigma=sigma,
                 trainable_offsets=self.trainable_offsets,
                 embedding_units=self.embedding_units,
-                radial_identifier=self.radial_indentifier,
-                radial_config=self.radial_config,
+                radial_factory=self.radial_factory.to_json(),
                 num_layers=self.num_layers,
                 si_units=self.si_units,
                 residual=self.residual,
                 activation=self.activation,
             )
+            return {**base, **updates}
 
     def test_energy_model_serializes_and_loads(self, random_cartesians_and_z, dynamic, eager):
         e = np.random.rand(2, 1).astype('float32')
-        model = self.SerializeModel(6, dynamic=dynamic)
-        model.compile(optimizer='adam', loss='mae', run_eagerly=eager)
+        model = self.SerializeModel(6, dynamic=False)
+        model.compile(optimizer='adam', loss='mae')
         model.fit(random_cartesians_and_z, e, epochs=3)
         pred = model.predict(random_cartesians_and_z)
-        tf.keras.experimental.export_saved_model(model, './test_models.tf', serving_only=True)
-        new_model = tf.keras.experimental.load_from_saved_model('./test_models.tf')
-        new_pred = new_model.pred(random_cartesians_and_z)
-        assert pred == new_pred
+        with self.temp_file('./subclass_test_model.tf') as model_path:
+            model.save(model_path)
+            new_model = tf.keras.models.load_model(model_path, custom_objects={
+                'SerializeModel': self.SerializeModel
+            })
+            new_pred = new_model.predict(random_cartesians_and_z)
+            assert np.allclose(pred, new_pred, atol=100)
