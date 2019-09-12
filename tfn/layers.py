@@ -5,7 +5,7 @@ from typing import Iterable, Union
 import numpy as np
 import tensorflow as tf
 from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis, OneHot
-from tensorflow.python.keras import Sequential, backend as K, regularizers, Model
+from tensorflow.python.keras import Sequential, backend as K, regularizers, Model, activations
 from tensorflow.python.keras.layers import Dense, Layer, Lambda
 from tensorflow.python.keras.models import model_from_json
 
@@ -32,11 +32,19 @@ class DenseRadialFactory(RadialFactory):
     def __init__(self,
                  num_layers: int = 2,
                  units: int = 16,
+                 activation: str = 'ssp',
                  kernel_lambda: float = 0.,
                  bias_lambda: float = 0.,
                  **kwargs):
         self.num_layers = num_layers
         self.units = units
+        if activation is None:
+            activation = 'ssp'
+        if isinstance(activation, str):
+            self.activation = activation
+        else:
+            raise ValueError('Expected `str` for param `activation`, but got `{}` instead. '
+                             'Ensure `activation` is a string mapping to a valid keras activation function')
         self.kernel_lambda = kernel_lambda
         self.bias_lambda = bias_lambda
 
@@ -55,6 +63,7 @@ class DenseRadialFactory(RadialFactory):
         return Sequential([
             Dense(
                 self.units,
+                activation=activations.get(self.activation),
                 kernel_regularizer=regularizers.l2(self.kernel_lambda),
                 bias_regularizer=regularizers.l2(self.bias_lambda),
             )
@@ -62,6 +71,7 @@ class DenseRadialFactory(RadialFactory):
         ] + [
             Dense(
                 feature_dim,
+                activation=activations.get(self.activation),
                 kernel_regularizer=regularizers.l2(self.kernel_lambda),
                 bias_regularizer=regularizers.l2(self.bias_lambda),
             )
@@ -152,7 +162,7 @@ class Convolution(Layer, EquivariantLayer):
     def __init__(self,
                  radial_factory: Union[RadialFactory, str] = None,
                  si_units: int = 16,
-                 activation: str = 'relu',
+                 activation: str = 'ssp',
                  max_filter_order: Union[int, Iterable[bool]] = 1,
                  output_orders: list = None,
                  **kwargs):
