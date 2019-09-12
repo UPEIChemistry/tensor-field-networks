@@ -101,14 +101,17 @@ class TestSerializability:
             except FileNotFoundError:
                 pass
 
-    def test_functional_save_model(self, random_cartesians_and_z, dynamic, eager):
+    def run_model(self, x, dynamic, eager):
         e = np.random.rand(2, 1)
         builder = Builder(max_z=6, dynamic=dynamic)
         model = builder.build()
-        model.compile(optimizer='adam', loss='mae', run_eagerly=True)
-        model.fit(random_cartesians_and_z, e, epochs=2)
-        pred = model.predict(random_cartesians_and_z)
+        model.compile(optimizer='adam', loss='mae', run_eagerly=eager)
+        model.fit(x, e, epochs=2)
+        return model
 
+    def test_functional_save_model(self, random_cartesians_and_z, dynamic, eager):
+        model = self.run_model(random_cartesians_and_z, dynamic, eager)
+        pred = model.predict(random_cartesians_and_z)
         with self.temp_file('functional_test_model.h5') as model_file:
             model.save(model_file)
             new_model = tf.keras.models.load_model(model_file)
@@ -116,3 +119,15 @@ class TestSerializability:
             # new_model = tf.keras.experimental.load_from_saved_model('test_model.tf')
             new_pred = new_model.predict(random_cartesians_and_z)
             assert np.alltrue(pred == new_pred)
+
+    def test_correct_num_trainable_weights(self, random_cartesians_and_z, dynamic, eager):
+        model = self.run_model(random_cartesians_and_z, dynamic, eager)
+
+        # embedding: 1, conv_0: 16, conv_1: 28, conv_2: 28, energy_layer: 14
+        # 1 + 16 + 28 + 28 + 14 == 87
+        assert len(model.trainable_weights) == 87
+        assert len(model.layers[4].trainable_weights) == 1
+        assert len(model.layers[5].trainable_weights) == 16
+        assert len(model.layers[6].trainable_weights) == 28
+        assert len(model.layers[9].trainable_weights) == 28
+        assert len(model.layers[12].trainable_weights) == 14
