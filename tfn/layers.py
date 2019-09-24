@@ -97,7 +97,7 @@ class EquivariantLayer(object):
             return int((tensor[-1] - 1) / 2)
 
     @staticmethod
-    def get_representation_index_from_ro(ro):
+    def get_representation_index(ro):
         """
         Converts from RO to representation_index
         """
@@ -189,6 +189,7 @@ class Convolution(Layer, EquivariantLayer):
         if not isinstance(output_orders, list) or output_orders is None:
             output_orders = [0, 1]
         self.output_orders = output_orders
+        self._supported_orders = [0, 1, 2]
 
         self._filters = {}
         self._si_layer = None
@@ -216,19 +217,12 @@ class Convolution(Layer, EquivariantLayer):
                              'of the 3D point-cloud')
         rbf, vectors, *features = input_shape
 
-        # Assign static block layers and build
-        self._si_layer = SelfInteraction(self.si_units)
-        self._activation_layer = EquivariantActivation(self.activation)
-        # if not self._si_layer.built:
-        #     self._si_layer.build(features)
-        # if not self._activation_layer.built:
-        #     self._activation_layer.build(features)
-
         # Validation and parameter prepping
         if isinstance(self.max_filter_order, int):
             filter_orders = list(range(self.max_filter_order + 1))
         else:
             filter_orders = [i for i, f in zip([0, 1], self.max_filter_order) if f]
+
         # Assign radials to filters, and filters to self._filters dict
         self._filters = {
             str(self.get_tensor_ro(shape)): [
@@ -243,18 +237,27 @@ class Convolution(Layer, EquivariantLayer):
                 for filter_order in filter_orders if self._possible_coefficient(self.get_tensor_ro(shape), filter_order)
             ] for shape in features
         }
+
         # Build filter layers
         for filters in self._filters.values():
             for hfilter in filters:
                 if not hfilter.built:
                     hfilter.build([rbf, vectors])
 
+        # Assign SI/EA layers and build
+        self._si_layer = SelfInteraction(self.si_units)
+        self._activation_layer = EquivariantActivation(self.activation)
+        if not self._si_layer.built and not self._activation_layer.built:
+            point_conv_shape = self._compute_point_conv_output_shape(input_shape)
+            concat_shape = self._compute_concat_output_shape(point_conv_shape)
+            self._si_layer.build(concat_shape)
+            si_shape = self._compute_si_output_shape(concat_shape)
+            self._activation_layer.build(si_shape)
+
     def call(self, inputs, **kwargs):
         if len(inputs) < 3:
             raise ValueError('Inputs must contain tensors: "image", "vectors", and a list of features tensors.')
-        image, vectors, *features = inputs
-        point_conv_inputs = [image, vectors] + list(features)
-        conv_outputs = self._point_convolution(point_conv_inputs)
+        conv_outputs = self._point_convolution(inputs)
         concat_outputs = self._concatenation(conv_outputs)
         si_outputs = self._self_interaction(concat_outputs)
         return self._equivariant_activation(si_outputs)
@@ -268,19 +271,19 @@ class Convolution(Layer, EquivariantLayer):
         :return: `bool` or tensor object
         """
         if input_order == 0 and filter_order == 1 and 1 in self.output_orders:
-            return no_coefficients or self.cg_coefficient(self.get_representation_index_from_ro(filter_order), axis=-1)
+            return no_coefficients or self.cg_coefficient(self.get_representation_index(filter_order), axis=-1)
         elif input_order == 1 and filter_order == 1 and 0 in self.output_orders:
-            return no_coefficients or self.cg_coefficient(self.get_representation_index_from_ro(filter_order), axis=0)
+            return no_coefficients or self.cg_coefficient(self.get_representation_index(filter_order), axis=0)
         elif input_order == 1 and filter_order == 1 and 1 in self.output_orders:
             return no_coefficients or self.lc_tensor()
         elif filter_order == 0 and input_order in self.output_orders:
-            return no_coefficients or self.cg_coefficient(self.get_representation_index_from_ro(input_order), axis=-2)
+            return no_coefficients or self.cg_coefficient(self.get_representation_index(input_order), axis=-2)
         else:
             return False
 
     def _point_convolution(self, inputs: list):
-        output_tensors = []
         image, vectors, *features = inputs
+        output_tensors = []
         for tensor in features:
             feature_order = self.get_tensor_ro(tensor)
             for hfilter in [f([image, vectors]) for f in self._filters[str(feature_order)]]:
@@ -307,16 +310,53 @@ class Convolution(Layer, EquivariantLayer):
                              'tensor orders.')
         return output_tensors
 
-    def _concatenation(self, inputs: list, axis=-2):
+    def _compute_point_conv_output_shape(self, input_shape: list):
+        """
+        :param input_shape: image, vectors, *features
+        """
+        image, vectors, *features = input_shape
+        mols, atoms, *_ = image
+        output_shapes = []
+        for shape in features:
+            feature_order = self.get_tensor_ro(shape)
+            for hfilter in [f.compute_output_shape([image, vectors]) for f in self._filters[(str(feature_order))]]:
+                filter_order = self.get_tensor_ro(hfilter)
+                coef = self._possible_coefficient(feature_order, filter_order, no_coefficients=False)
+                if coef is not False:
+                    output_shapes.append(tf.TensorShape([mols, atoms, shape[-2], coef.shape[0]]))
+        return output_shapes  # TODO: Test this!
+
+    def _nest_like_tensors(self, tensors):
         nested_inputs = [
-            [x for x in inputs if self.get_tensor_ro(x) == ro]
-            for ro in (0, 1, 2)
+            [x for x in tensors if self.get_tensor_ro(x) == ro]
+            for ro in self._supported_orders
         ]
-        nested_inputs = [x for x in nested_inputs if x]
+        return [x for x in nested_inputs if x]
+
+    def _concatenation(self, inputs: list, axis=-2):
+        nested_inputs = self._nest_like_tensors(inputs)
         return [K.concatenate(tensors, axis=axis) for tensors in nested_inputs]
+
+    def _compute_concat_output_shape(self, input_shape: list):
+        if not isinstance(input_shape, list):
+            input_shape = [input_shape]
+        nested_inputs = self._nest_like_tensors(input_shape)
+        mols, atoms, *_ = input_shape[0]
+        output_shapes = []
+        for i, shapes in enumerate(nested_inputs):
+            filter_dim = sum([shape[-2] for shape in shapes])
+            output_shapes.append(
+                tf.TensorShape([mols, atoms, filter_dim, self.get_representation_index(i)])
+            )
+        return output_shapes
 
     def _self_interaction(self, inputs):
         return self._si_layer(inputs)
+
+    def _compute_si_output_shape(self, input_shape: list):
+        if not isinstance(input_shape, list):
+            input_shape = [list]
+        return [tf.TensorShape([shape[0], shape[1], self.si_units, shape[-1]]) for shape in input_shape]
 
     def _equivariant_activation(self, inputs):
         return self._activation_layer(inputs)
@@ -346,7 +386,7 @@ class Convolution(Layer, EquivariantLayer):
                 mols,
                 atoms,
                 self.si_units,
-                self.get_representation_index_from_ro(ro)
+                self.get_representation_index(ro)
             ]) for ro in self.output_orders
         ]
 
@@ -499,7 +539,7 @@ class HarmonicFilter(Layer, EquivariantLayer):
             mols,
             atoms,
             filter_dim,
-            self.get_representation_index_from_ro(self.filter_order)
+            self.get_representation_index(self.filter_order)
         ])
 
 
@@ -681,6 +721,14 @@ class Preprocessing(Layer):
         )
         return {**base, **updates}
 
+    def compute_output_shape(self, input_shape):
+        r, _ = input_shape
+        mols, atoms, _ = r
+        return [
+            tf.TensorShape([mols, atoms, self.max_z]),
+            tf.TensorShape([mols, atoms, atoms, self.basis_function._n_centers]),
+            tf.TensorShape([mols, atoms, atoms, 3])
+        ]
 
 class UnitVectors(Layer):
     """

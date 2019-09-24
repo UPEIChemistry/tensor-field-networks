@@ -1,7 +1,9 @@
+import json
 import os
 from contextlib import contextmanager
 from typing import Union
 
+import h5py
 import numpy as np
 import tensorflow as tf
 from atomic_images.layers import Unstandardization
@@ -113,12 +115,29 @@ class TestSerializability:
         model = self.run_model(random_cartesians_and_z, dynamic, eager)
         pred = model.predict(random_cartesians_and_z)
         with self.temp_file('functional_test_model.h5') as model_file:
-            model.save(model_file)
+            model.save(model_file, save_format='h5')
             new_model = tf.keras.models.load_model(model_file)
             # tf.keras.experimental.export_saved_model(model, 'test_model.tf')
             # new_model = tf.keras.experimental.load_from_saved_model('test_model.tf')
             new_pred = new_model.predict(random_cartesians_and_z)
             assert np.alltrue(pred == new_pred)
+
+    def test_save_weights(self, random_cartesians_and_z, dynamic, eager):
+        model = self.run_model(random_cartesians_and_z, dynamic, eager)
+        weights = model.get_weights()
+        with self.temp_file('functional_weights.h5') as weight_file:
+            model.save_weights(weight_file)
+            new_model = Builder(max_z=6, dynamic=dynamic).build()
+            new_model.load_weights(weight_file)
+            new_weights = new_model.get_weights()
+            assert all(
+                [np.alltrue(a == b) for a, b in zip(weights, new_weights)]
+            )
+
+    def test_save_model_json(self, random_cartesians_and_z, dynamic, eager):
+        model = self.run_model(random_cartesians_and_z, dynamic, eager)
+        model_json = model.to_json()
+        _ = json.loads(model_json)
 
     def test_correct_num_trainable_weights(self, random_cartesians_and_z, dynamic, eager):
         model = self.run_model(random_cartesians_and_z, dynamic, eager)
