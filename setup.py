@@ -9,4 +9,10 @@ setup(
     version=__version__,
     description=__description__,
     packages=find_packages(),
+    requires=[
+        'tensorflow>=2.0',
+        'numpy',
+        'atomic-images',
+        'matplotlib'
+    ]
 )
