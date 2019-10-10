@@ -30,7 +30,7 @@ class DenseRadialFactory(RadialFactory):
     dict.
     """
     def __init__(self,
-                 num_layers: int = 3,
+                 num_layers: int = 2,
                  units: int = 32,
                  activation: str = 'ssp',
                  kernel_lambda: float = 0.,
@@ -448,7 +448,7 @@ class HarmonicFilter(Layer, EquivariantLayer):
         elif isinstance(radial, Layer):
             pass
         else:
-            raise ValueError('arg: `radial` is of type: {}')
+            raise ValueError('arg: `radial` is of type: {}'.format(type(radial).__name__))
         self.radial = radial
         self.filter_order = filter_order
 

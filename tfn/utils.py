@@ -4,9 +4,7 @@ Module containing basic utility functions for the TFN layers
 
 import math
 import numpy as np
-import tensorflow as tf
 from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.layers import Lambda
 
 
 def norm_with_epsilon(x, axis=None, keepdims=False):

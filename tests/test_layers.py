@@ -13,7 +13,7 @@ class TestRadialFactory:
         config = layers.DenseRadialFactory().to_json()
         factory = layers.DenseRadialFactory.from_json(config)
         assert factory.num_layers == 2
-        assert factory.units == 16
+        assert factory.units == 32
 
 
 class TestConvolution:
@@ -38,7 +38,7 @@ class TestConvolution:
         _ = conv(list(point_cloud) + list(features))
         config = json.loads(conv.radial_factory.to_json())
         assert config['type'] == 'DenseRadialFactory'
-        assert config['units'] == 16
+        assert config['units'] == 32
 
     def test_provided_radial_string_and_kwargs(self,
                                                random_onehot_rbf_vectors,
