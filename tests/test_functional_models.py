@@ -111,17 +111,6 @@ class TestSerializability:
         model.fit(x, e, epochs=2)
         return model
 
-    def test_functional_save_model(self, random_cartesians_and_z, dynamic, eager):
-        model = self.run_model(random_cartesians_and_z, dynamic, eager)
-        pred = model.predict(random_cartesians_and_z)
-        with self.temp_file('functional_test_model.h5') as model_file:
-            model.save(model_file, save_format='h5')
-            new_model = tf.keras.models.load_model(model_file)
-            # tf.keras.experimental.export_saved_model(model, 'test_model.tf')
-            # new_model = tf.keras.experimental.load_from_saved_model('test_model.tf')
-            new_pred = new_model.predict(random_cartesians_and_z)
-            assert np.alltrue(pred == new_pred)
-
     def test_save_weights(self, random_cartesians_and_z, dynamic, eager):
         model = self.run_model(random_cartesians_and_z, dynamic, eager)
         weights = model.get_weights()
