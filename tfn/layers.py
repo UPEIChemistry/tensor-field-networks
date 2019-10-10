@@ -30,8 +30,8 @@ class DenseRadialFactory(RadialFactory):
     dict.
     """
     def __init__(self,
-                 num_layers: int = 2,
-                 units: int = 16,
+                 num_layers: int = 3,
+                 units: int = 32,
                  activation: str = 'ssp',
                  kernel_lambda: float = 0.,
                  bias_lambda: float = 0.,
