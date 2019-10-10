@@ -13,13 +13,19 @@ from tfn import utils
 
 
 class RadialFactory(object):
-
+    """
+    Abstract class for RadialFactory objects, defines the interface. Subclass
+    """
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         raise NotImplementedError
 
     def to_json(self):
         self.__dict__['type'] = type(self).__name__
         return json.dumps(self.__dict__)
+
+    @classmethod
+    def from_json(cls, config: str):
+        raise NotImplementedError
 
 
 class DenseRadialFactory(RadialFactory):
