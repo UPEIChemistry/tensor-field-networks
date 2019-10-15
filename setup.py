@@ -12,7 +12,6 @@ setup(
     install_requires=[
         'tensorflow>=2.0',
         'numpy',
-        'atomic-images',
         'matplotlib'
     ]
 )
