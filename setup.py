@@ -9,7 +9,7 @@ setup(
     version=__version__,
     description=__description__,
     packages=find_packages(),
-    requires=[
+    install_requires=[
         'tensorflow>=2.0',
         'numpy',
         'atomic-images',
