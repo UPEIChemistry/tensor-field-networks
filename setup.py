@@ -10,7 +10,7 @@ setup(
     description=__description__,
     packages=find_packages(),
     install_requires=[
-        'tensorflow>=2.0',
+        'tensorflow-gpu>=2.0',
         'numpy',
         'matplotlib'
     ]
