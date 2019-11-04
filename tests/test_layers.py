@@ -137,7 +137,7 @@ class TestPreprocessing:
         r, z = random_cartesians_and_z
         pre_block = layers.Preprocessing(
             max_z=5,
-            gaussian_config={
+            basis_config={
                 'width': 0.2,
                 'spacing': 0.2,
                 'min_value': -1.0,
@@ -146,3 +146,12 @@ class TestPreprocessing:
         )
         outputs = pre_block([r, z])
         assert len(outputs) == 3
+
+    def test_cosine_basis(self, random_cartesians_and_z):
+        pre_block = layers.Preprocessing(
+            max_z=5,
+            basis_type='cosine'
+        )
+        outputs = pre_block(random_cartesians_and_z)
+        assert len(outputs) == 3
+        assert outputs[1].shape == (2, 10, 10, 80)

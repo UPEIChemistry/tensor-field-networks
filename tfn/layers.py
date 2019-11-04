@@ -4,7 +4,7 @@ from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
-from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis, OneHot
+from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis, OneHot, CosineBasis
 from tensorflow.python.keras import Sequential, backend as K, regularizers, Model, activations
 from tensorflow.python.keras.layers import Dense, Layer, Lambda
 from tensorflow.python.keras.models import model_from_json
@@ -697,17 +697,23 @@ class Preprocessing(Layer):
     """
     def __init__(self,
                  max_z,
-                 gaussian_config=None,
+                 basis_config=None,
+                 basis_type='gaussian',
                  **kwargs):
         super().__init__(**kwargs)
         self.max_z = max_z
-        if gaussian_config is None:
-            gaussian_config = {
+        if basis_config is None:
+            basis_config = {
                 'width': 0.2, 'spacing': 0.2, 'min_value': -1.0, 'max_value': 15.0
             }
-        self.gaussian_config = gaussian_config
+        self.basis_config = basis_config
+        self.basis_type = basis_type
         self.one_hot = OneHot(self.max_z)
-        self.basis_function = GaussianBasis(**self.gaussian_config)
+        if self.basis_type == 'cosine':
+            basis_function = CosineBasis(**self.basis_config)
+        else:
+            basis_function = GaussianBasis(**self.basis_config)
+        self.basis_function = basis_function
         self.distance_matrix = DistanceMatrix()
         self.unit_vectors = UnitVectors()
 
@@ -723,7 +729,7 @@ class Preprocessing(Layer):
         base = super().get_config()
         updates = dict(
             max_z=self.max_z,
-            gaussian_config=self.gaussian_config
+            gaussian_config=self.basis_config
         )
         return {**base, **updates}
 
@@ -735,6 +741,7 @@ class Preprocessing(Layer):
             tf.TensorShape([mols, atoms, atoms, self.basis_function._n_centers]),
             tf.TensorShape([mols, atoms, atoms, 3])
         ]
+
 
 class UnitVectors(Layer):
     """
