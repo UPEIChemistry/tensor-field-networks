@@ -154,4 +154,15 @@ class TestPreprocessing:
         )
         outputs = pre_block(random_cartesians_and_z)
         assert len(outputs) == 3
+        assert pre_block.basis_type == 'cosine'
+        assert outputs[1].shape == (2, 10, 10, 80)
+
+    def test_shifted_cosine_basis(self, random_cartesians_and_z):
+        pre_block = layers.Preprocessing(
+            max_z=5,
+            basis_type='shifted_cosine'
+        )
+        outputs = pre_block(random_cartesians_and_z)
+        assert len(outputs) == 3
+        assert pre_block.basis_type == 'shifted_cosine'
         assert outputs[1].shape == (2, 10, 10, 80)

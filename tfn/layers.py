@@ -4,7 +4,9 @@ from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
-from atomic_images.layers import DistanceMatrix, DummyAtomMasking, GaussianBasis, OneHot, CosineBasis
+from atomic_images.layers import (DistanceMatrix, DummyAtomMasking,
+                                  GaussianBasis, OneHot, CosineBasis,
+                                  ShiftedCosineBasis)
 from tensorflow.python.keras import Sequential, backend as K, regularizers, Model, activations
 from tensorflow.python.keras.layers import Dense, Layer, Lambda
 from tensorflow.python.keras.models import model_from_json
@@ -711,6 +713,8 @@ class Preprocessing(Layer):
         self.one_hot = OneHot(self.max_z)
         if self.basis_type == 'cosine':
             basis_function = CosineBasis(**self.basis_config)
+        elif self.basis_type == 'shifted_cosine':
+            basis_function = ShiftedCosineBasis(**self.basis_config)
         else:
             basis_function = GaussianBasis(**self.basis_config)
         self.basis_function = basis_function
