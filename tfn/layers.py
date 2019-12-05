@@ -18,25 +18,6 @@ class RadialFactory(object):
     """
     Abstract class for RadialFactory objects, defines the interface. Subclass
     """
-    def get_radial(self, feature_dim, input_order=None, filter_order=None):
-        raise NotImplementedError
-
-    def to_json(self):
-        self.__dict__['type'] = type(self).__name__
-        return json.dumps(self.__dict__)
-
-    @classmethod
-    def from_json(cls, config: str):
-        raise NotImplementedError
-
-
-class DenseRadialFactory(RadialFactory):
-    """
-    Default factory class for supplying radial functions to a Convolution layer. Subclass this factory and override its
-    `get_radial` method to return custom radial instances/templates. You must also override the `to_json` and
-    `from_json` and register any custom `RadialFactory` classes to a unique string in the keras global custom objects
-    dict.
-    """
     def __init__(self,
                  num_layers: int = 2,
                  units: int = 32,
@@ -56,6 +37,25 @@ class DenseRadialFactory(RadialFactory):
         self.kernel_lambda = kernel_lambda
         self.bias_lambda = bias_lambda
 
+    def get_radial(self, feature_dim, input_order=None, filter_order=None):
+        raise NotImplementedError
+
+    def to_json(self):
+        self.__dict__['type'] = type(self).__name__
+        return json.dumps(self.__dict__)
+
+    @classmethod
+    def from_json(cls, config: str):
+        raise NotImplementedError
+
+
+class DenseRadialFactory(RadialFactory):
+    """
+    Default factory class for supplying radial functions to a Convolution layer. Subclass this factory and override its
+    `get_radial` method to return custom radial instances/templates. You must also override the `to_json` and
+    `from_json` and register any custom `RadialFactory` classes to a unique string in the keras global custom objects
+    dict.
+    """
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         """
         Factory method for obtaining radial functions of a specified architecture, or an instance of a radial function
