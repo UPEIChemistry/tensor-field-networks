@@ -693,7 +693,7 @@ class Preprocessing(Layer):
     image basis functions.
 
     :param max_z: int. Total number of point types + 1 (for 0 type points)
-    :param gaussian_config: dict. Contains: 'width' which specifies the size of the gaussian basis functions,
+    :param basis_config: dict. Contains: 'width' which specifies the size of the gaussian basis functions,
         'spacing' which defines the size of the grid, 'min_value' which specifies the beginning point probed by the
         grid, and 'max_value' which defines the end point of the grid.
     """
@@ -733,7 +733,7 @@ class Preprocessing(Layer):
         base = super().get_config()
         updates = dict(
             max_z=self.max_z,
-            gaussian_config=self.basis_config
+            basis_config=self.basis_config
         )
         return {**base, **updates}
 

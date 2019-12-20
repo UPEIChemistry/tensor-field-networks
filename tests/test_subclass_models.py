@@ -18,12 +18,12 @@ from atomic_images.layers import Unstandardization
 class ScalarModel(Model):
     def __init__(self,
                  max_z=6,
-                 gaussian_config=None,
+                 basis_config=None,
                  output_orders=None,
                  **kwargs):
         super().__init__(**kwargs)
         self.max_z = max_z
-        self.gaussian_config = gaussian_config
+        self.basis_config = basis_config
         if output_orders is None:
             output_orders = [0]
         self.output_orders = output_orders
@@ -35,7 +35,7 @@ class ScalarModel(Model):
     def call(self, inputs, training=None, mask=None):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
-        one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+        one_hot, rbf, vectors = Preprocessing(self.max_z, self.basis_config)([r, z])
         embedding = self.embedding(K.expand_dims(one_hot, axis=-1))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
@@ -53,7 +53,7 @@ class ScalarModel(Model):
     def get_config(self):
         return dict(
             max_z=self.max_z,
-            gaussian_config=self.gaussian_config,
+            basis_config=self.basis_config,
             output_orders=self.output_orders
         )
 
@@ -66,7 +66,7 @@ class VectorModel(ScalarModel):
     def call(self, inputs, training=None, mask=None):
         r, z = inputs  # (mols, atoms, 3) and (mols, atoms)
         # Slice r, z for single mol
-        one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+        one_hot, rbf, vectors = Preprocessing(self.max_z, self.basis_config)([r, z])
         embedding = self.embedding(K.expand_dims(one_hot, axis=-1))
         output = self.conv1([one_hot, rbf, vectors] + embedding)
         output = self.conv2([one_hot, rbf, vectors] + output)
@@ -110,7 +110,7 @@ class TestEquivariance:
 
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs
-                point_cloud = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+                point_cloud = Preprocessing(self.max_z, self.basis_config)([r, z])
                 embedding = self.embedding(
                         K.expand_dims(point_cloud[0], axis=-1),
                         pattern=[0, 1, 3, 2]
@@ -148,7 +148,7 @@ class TestEnergyModels:
             def call(self, inputs, training=None, mask=None):
                 r, z = inputs  # (batch, points, 3) and (batch, points)
                 # Slice r, z for single mol
-                one_hot, rbf, vectors = Preprocessing(self.max_z, self.gaussian_config)([r, z])
+                one_hot, rbf, vectors = Preprocessing(self.max_z, self.basis_config)([r, z])
                 embedding = self.embedding(K.permute_dimensions(one_hot, pattern=[0, 1, 3, 2]))
                 output = self.conv1([one_hot, rbf, vectors] + embedding)
                 output = [x + y for x, y in zip(output, self.conv2([one_hot, rbf, vectors] + output))]
