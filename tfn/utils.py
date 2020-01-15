@@ -46,3 +46,12 @@ def rotation_matrix(axis_matrix=None, theta=math.pi/2):
     return np.array([[aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
                      [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
                      [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]])
+
+
+def shifted_softplus(x):
+    y = K.switch(
+        x < 14.,
+        K.softplus(K.switch(x < 14., x, K.zeros_like(x))),
+        x
+    )
+    return y - K.log(2.)

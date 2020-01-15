@@ -124,11 +124,24 @@ class TestSelfInteraction:
         outputs = si(inputs)
         assert outputs[0].shape == (2, 10, 32, 1) and outputs[1].shape == (2, 10, 32, 3)
 
+    def test_molecular_si(self, random_features_and_targets, random_onehot_rbf_vectors):
+        one_hot, *_ = random_onehot_rbf_vectors
+        inputs, targets = random_features_and_targets
+        si = layers.MolecularSelfInteraction(32)
+        outputs = si([one_hot] + inputs)
+        assert outputs[0].shape == (2, 10, 32, 1) and outputs[1].shape == (2, 10, 32, 3)
+
 
 class TestEquivariantActivation:
     def test_correct_output_shapes(self, random_features_and_targets):
         inputs, targets = random_features_and_targets
         outputs = layers.EquivariantActivation()(inputs)
+        assert all([i.shape == o.shape for i, o in zip(inputs, outputs)])
+
+    def test_molecular_activation(self, random_features_and_targets, random_onehot_rbf_vectors):
+        one_hot, *_ = random_onehot_rbf_vectors
+        inputs, targets = random_features_and_targets
+        outputs = layers.MolecularActivation()([one_hot] + inputs)
         assert all([i.shape == o.shape for i, o in zip(inputs, outputs)])
 
 
