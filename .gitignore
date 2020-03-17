@@ -99,11 +99,17 @@ ehthumbs.db
 Thumbs.db
 
 # Docs
+######################
 docs/html
 
 # Custom Patterns
 ######################
-keras_model_loader/kml_settings.json
 examples/*
 *.h5
 *.hdf5
+*storage/
+logs/
+mongo_db/
+*.sh
+*.out
+*.pickle

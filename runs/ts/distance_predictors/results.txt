@@ -1,0 +1,37 @@
+Linear Regression:
+CV average train score: 0.7959922267811642
+CV average test score: 0.7302634029489956
+Average mean absolute error for models: 0.09609951368852987
+
+Lasso Regression:
+CV average train score: 0.27296286295072153
+CV average test score: 0.15734825645886855
+Average mean absolute error for models: 0.21103128684128078
+
+Kernel Ridge Regression:
+CV average train score: 0.7941700154919161
+CV average test score: 0.7366877188282516
+Average mean absolute error for models: 0.09508595276541303
+
+SVR:
+model_0
+CV average train score: 0.9112967954432685
+CV average test score: 0.7132921272706851
+Average mean absolute error for models: 0.07658805426857204
+
+model_1
+CV average train score: 0.9112636615254287
+CV average test score: 0.7527553968835576
+Average mean absolute error for models: 0.07537080997125156
+
+SVR Search:
+### Nucleophile to Center Distance ###
+score: -0.03256904545402966
+MAE: 0.03256904545402966
+
+### Center to LG Distance ###
+score: -0.11237412879384306
+MAE: 0.03229168527309083
+
+model0 params: {'C': 1, 'epsilon': 0.001, 'kernel': 'rbf'}
+model1 params: {'C': 1, 'epsilon': 0.0001, 'kernel': 'rbf'}
