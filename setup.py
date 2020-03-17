@@ -10,8 +10,7 @@ setup(
     description=__description__,
     packages=find_packages(),
     install_requires=[
-        'tensorflow-gpu>=2.0',
-        'numpy',
-        'matplotlib'
+        'tensorflow==2.0',
+        'keras-tuner'
     ]
 )
