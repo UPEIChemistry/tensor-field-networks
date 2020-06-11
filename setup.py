@@ -10,7 +10,7 @@ setup(
     description=__description__,
     packages=find_packages(),
     install_requires=[
-        'tensorflow==2.0',
+        'tensorflow==2.0.1',
         'keras-tuner'
     ]
 )
