@@ -284,7 +284,7 @@ class TestSerialization:
     def test_energy_model_serializes_and_loads(self, random_cartesians_and_z, dynamic, eager):
         e = np.random.rand(2, 1).astype('float32')
         model = self.SerializeModel(6, dynamic=False)
-        model.compile(optimizer='adam', loss='mae')
+        model.compile(optimizer='adam', loss='mae', run_eagerly=False)
         model.fit(random_cartesians_and_z, e, epochs=3)
         pred = model.predict(random_cartesians_and_z)
         with self.temp_file('./subclass_test_model.tf') as model_path:

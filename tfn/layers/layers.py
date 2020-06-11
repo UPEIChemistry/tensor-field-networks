@@ -4,7 +4,7 @@ from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import backend as K, activations
+from tensorflow.keras import backend as K, activations, regularizers, initializers
 from tensorflow.keras.layers import Layer, Lambda
 from tensorflow.keras.models import model_from_json, Model
 from tensorflow.keras.utils import get_custom_objects
@@ -23,9 +23,11 @@ class EquivariantLayer(object):
         :return: int. RO of tensor
         """
         try:
-            return int((tensor.shape[-1] - 1) / 2)
+            representation_index = tensor.shape[-1]
         except AttributeError:
-            return int((tensor[-1] - 1) / 2)
+            representation_index = tensor[-1]
+
+        return int((representation_index - 1) / 2)
 
     @staticmethod
     def get_representation_index(ro):
@@ -486,9 +488,11 @@ class SelfInteraction(Layer, EquivariantLayer):
     """
     def __init__(self,
                  units: int,
+                 weight_lambda: float = 0.01,
                  **kwargs):
         super().__init__(**kwargs)
         self.units = units
+        self.weight_lambda = weight_lambda
         self.kernels = None
 
     def build(self, input_shape):
@@ -497,8 +501,9 @@ class SelfInteraction(Layer, EquivariantLayer):
         self.kernels = [
             self.add_weight(
                 name='sikernel_{}'.format(str(i)),
-                shape=(self.units, shape[-2]),
-                regularizer=self.activity_regularizer
+                shape=(shape[-2], self.units),
+                initializer=initializers.glorot_normal(),
+                regularizer=regularizers.l2(self.weight_lambda)
             ) for i, shape in enumerate(input_shape)
         ]
         self.built = True
@@ -509,12 +514,11 @@ class SelfInteraction(Layer, EquivariantLayer):
             inputs = [inputs]
         for i, tensor in enumerate(inputs):
             w = self.kernels[i]
-            output_tensors.append(
-                K.permute_dimensions(
-                    Lambda(lambda x: tf.einsum('mafi,gf->maig', *x))([tensor, w]),
-                    pattern=[0, 1, 3, 2]
-                )
-            )
+            tensor = K.permute_dimensions(tensor, pattern=[0, 1, 3, 2])
+            tensor = K.dot(tensor, w)
+            tensor = K.permute_dimensions(tensor, pattern=[0, 1, 3, 2])
+            output_tensors.append(tensor)
+
         return output_tensors
 
     def get_config(self):
@@ -544,6 +548,7 @@ class EquivariantActivation(Layer, EquivariantLayer):
     """
     def __init__(self,
                  activation: str = 'ssp',
+                 bias_lambda: float = 0.01,
                  **kwargs):
         super().__init__(**kwargs)
         if activation is None:
@@ -551,10 +556,11 @@ class EquivariantActivation(Layer, EquivariantLayer):
         if isinstance(activation, str):
             self._activation = activation
             activation = activations.get(activation)
-        else:
+        elif not callable(activation):
             raise ValueError('param `activation` must be a string mapping '
                              'to a registered keras activation')
         self.activation = activation
+        self.bias_lambda = bias_lambda
         self.biases = None
 
     def build(self, input_shape):
@@ -564,7 +570,8 @@ class EquivariantActivation(Layer, EquivariantLayer):
             self.add_weight(
                 name='eabias_{}'.format(str(i)),
                 shape=(shape[-2],),
-                regularizer=self.activity_regularizer
+                regularizer=regularizers.l2(self.bias_lambda),
+                initializer=initializers.zeros(),
             ) for i, shape in enumerate(input_shape)
         ]
         self.built = True
@@ -577,10 +584,10 @@ class EquivariantActivation(Layer, EquivariantLayer):
             key = self.get_tensor_ro(tensor)
             b = self.biases[i]
             if key == 0:
-                b = K.expand_dims(K.expand_dims(b, axis=0), axis=-1)
-                output_tensors.append(
-                    self.activation(tensor + b)
-                )
+                tensor = K.squeeze(tensor, axis=-1)
+                a = self.activation(K.bias_add(tensor, b))
+                a = K.expand_dims(a, axis=-1)
+                output_tensors.append(a)
             elif key == 1:
                 l2_norm = utils.norm_with_epsilon(tensor, axis=-1)
                 a = self.activation(

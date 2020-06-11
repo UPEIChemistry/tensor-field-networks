@@ -1,5 +1,5 @@
-from tensorflow_core.python.keras import backend as K
-from tensorflow_core.python.keras.layers import Lambda
+from tensorflow.python.keras import backend as K
+from tensorflow.python.keras.layers import Lambda
 from tfn.layers import MolecularConvolution
 
 from tfn.tools.builders import Builder

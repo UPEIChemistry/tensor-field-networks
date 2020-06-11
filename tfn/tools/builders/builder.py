@@ -115,7 +115,7 @@ class Builder(object):
         for layer_num, layer in enumerate(layers):
             if layer_num == 0:
                 learned_output = layer(point_cloud + learned_output)
-            elif self.residual:
+            elif self.residual:  # FIXME: Is this really residual?
                 learned_output = [
                     Add()([x, y]) for x, y in zip(learned_output,
                                                   layer(point_cloud + learned_output))

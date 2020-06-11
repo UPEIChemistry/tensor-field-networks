@@ -48,6 +48,18 @@ class TestScalarModels:
         model = load_model(model)
         assert True
 
+    def test_default_loads_eagerly(self, run_config, builder_config, model):
+        run_config['run_eagerly'] = True
+        builder_config['dynamic'] = True
+        job = SingleModel({
+            'name': 'test',
+            'run_config': run_config,
+            'builder_config': builder_config
+        })
+        job.run()
+        model = load_model(model)
+        assert True
+
 
 class TestDualModels:
     def test_defaults(self, run_config, builder_config):

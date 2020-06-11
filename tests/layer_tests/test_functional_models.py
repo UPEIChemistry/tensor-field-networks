@@ -139,3 +139,12 @@ class TestSerializability:
         assert len(model.layers[6].trainable_weights) == 28
         assert len(model.layers[9].trainable_weights) == 28
         assert len(model.layers[12].trainable_weights) == 14
+
+    def test_saved_model_loads(self, random_cartesians_and_z, dynamic, eager):
+        model = self.run_model(random_cartesians_and_z, False, False)
+        pred = model.predict(random_cartesians_and_z)
+        with self.temp_file('./subclass_test_model.h5') as model_path:
+            model.save(model_path)
+            new_model = tf.keras.models.load_model(model_path)
+            new_pred = new_model.predict(random_cartesians_and_z)
+            assert np.allclose(pred, new_pred, atol=100)

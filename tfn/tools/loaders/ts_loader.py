@@ -8,7 +8,8 @@ from . import DataLoader
 
 class TSLoader(DataLoader):
     def __init__(self, *args, **kwargs):
-        self.use_energies = kwargs.pop('use_energies', True)
+        self.use_energies = kwargs.pop('use_energies', False)
+        self.output_cartesians = kwargs.pop('output_cartesians', False)
         kwargs.setdefault('num_atoms', 29)
         super().__init__(*args, **kwargs)
 
@@ -59,7 +60,7 @@ class TSLoader(DataLoader):
         if self._data is not None:
             return self._data
         with File(self.path, 'r') as dataset:
-            atomic_nums = self.pad_along_axis(np.asarray(dataset['ts/atomic_numbers']),
+            atomic_nums = self.pad_along_axis(np.asarray(dataset['ts/atomic_numbers'], dtype='int'),
                                               self.num_atoms)
             ts_cartesians = self.pad_along_axis(np.nan_to_num(dataset['ts/cartesians']),
                                                 self.num_atoms)
@@ -82,7 +83,10 @@ class TSLoader(DataLoader):
         self._sigma = np.std(ts_energies)
 
         x = [reactant_cartesians, product_cartesians, atomic_nums]
-        y = [dist_matrix]
+        if self.output_cartesians:
+            y = [ts_cartesians]
+        else:
+            y = [dist_matrix]
         if self.use_energies:
             y.insert(0, ts_energies)
         self._data = self.split_dataset(
