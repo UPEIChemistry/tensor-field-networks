@@ -37,8 +37,8 @@ class TestTSLoader:
         data = loader.load_data()
         assert len(data) == 3
         assert len(data[0]) == 2
-        assert len(data[0][0]) == 3  # R, P, Z
-        assert len(data[0][1]) == 2  # TS
+        assert len(data[0][0]) == 5  # Z, R, RC, PC, P
+        assert len(data[0][1]) == 1  # TS
 
 
 class TestSN2Loader:

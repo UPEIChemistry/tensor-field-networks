@@ -1,15 +1,12 @@
 from h5py import File
 import numpy as np
 
-from atomic_images.np_layers import DistanceMatrix
-
 from . import DataLoader
 
 
 class TSLoader(DataLoader):
     def __init__(self, *args, **kwargs):
         self.use_energies = kwargs.pop('use_energies', False)
-        self.output_cartesians = kwargs.pop('output_cartesians', False)
         kwargs.setdefault('num_atoms', 29)
         super().__init__(*args, **kwargs)
 
@@ -44,7 +41,7 @@ class TSLoader(DataLoader):
 
     def load_data(self, *args, **kwargs):
         """
-        The MP2 TS Dataset is a dataset of 78 gas-phase SN2 structures, comprised of
+        The MP2 TS Dataset is a dataset of 74 gas-phase SN2 structures, comprised of
         reactant/ts/product cartesians & atomic numbers obtained using the MP2 method with the
         cc-PVDZ basis set.
 
@@ -54,41 +51,40 @@ class TSLoader(DataLoader):
             (x_val, y_val),
             (x_test, y_test)
         ]
-        Where x is: (atomic_numbers, reactant_cartesians, product_cartesians)
-        Where y is: ts_cartesians
+        Where x is: [atomic_numbers, reactant_cartesians, reactant_complex_cartesians,
+        product_complex_cartesians, product_cartesians]
+        Where y is: [ts_cartesians]
         """
         if self._data is not None:
             return self._data
         with File(self.path, 'r') as dataset:
-            atomic_nums = self.pad_along_axis(np.asarray(dataset['ts/atomic_numbers'], dtype='int'),
-                                              self.num_atoms)
-            ts_cartesians = self.pad_along_axis(np.nan_to_num(dataset['ts/cartesians']),
-                                                self.num_atoms)
-            ts_energies = np.reshape(dataset['ts/energies'], [-1, 1, 1, 1])
-            reactant_cartesians = self.pad_along_axis(np.nan_to_num(dataset[
-                                                                     'reactants/cartesians']),
-                                                      self.num_atoms)
-            product_cartesians = self.pad_along_axis(np.nan_to_num(dataset['products/cartesians']),
-                                                     self.num_atoms)
-
-        # Make distance matrix
-        dist_matrix = DistanceMatrix()(ts_cartesians)
+            atomic_nums = self.pad_along_axis(
+                np.asarray(dataset['ts/atomic_numbers'], dtype='int'),
+                self.num_atoms)
+            cartesians = {
+                structure_type: self.pad_along_axis(
+                    np.nan_to_num(dataset['{}/cartesians'.format(structure_type)]),
+                    self.num_atoms
+                ) for structure_type in
+                ('reactant', 'reactant_complex', 'ts', 'product_complex', 'product')
+            }
 
         if self.map_atoms:
             self.remap_atoms(atomic_nums)
         self._max_z = np.max(atomic_nums) + 1
         if kwargs.get('return_maxz', False):
             return
-        self._mu = np.mean(ts_energies)
-        self._sigma = np.std(ts_energies)
 
-        x = [reactant_cartesians, product_cartesians, atomic_nums]
-        if self.output_cartesians:
-            y = [ts_cartesians]
-        else:
-            y = [dist_matrix]
-        if self.use_energies:
-            y.insert(0, ts_energies)
+        x = [
+            atomic_nums,
+            cartesians['reactant'],
+            cartesians['reactant_complex'],
+            cartesians['product'],
+            cartesians['product_complex']
+        ]
+        y = [
+            cartesians['ts']
+        ]
         self._data = self.split_dataset(
             data=[x, y],
             length=len(atomic_nums)
@@ -96,6 +92,7 @@ class TSLoader(DataLoader):
         return self._data
 
     def load_distance_data(self, *args, **kwargs):
+        """DEPRICATED"""
         with File(self.path, 'r') as dataset:
             x = np.array(dataset['equilibria_distances'])
             y = np.array(dataset['ts_distances'])
