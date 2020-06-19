@@ -52,7 +52,7 @@ class TSLoader(DataLoader):
             (x_test, y_test)
         ]
         Where x is: [atomic_numbers, reactant_cartesians, reactant_complex_cartesians,
-        product_complex_cartesians, product_cartesians]
+        product_cartesians, product_complex_cartesians]
         Where y is: [ts_cartesians]
         """
         if self._data is not None:
