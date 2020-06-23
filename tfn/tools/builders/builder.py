@@ -94,8 +94,17 @@ class Builder(object):
         name = kwargs.pop('name', 'conv')
         num_layers = kwargs.pop('num_layers', self.num_layers)
         si_units = kwargs.pop('si_units', self.si_units)
-        layers = []
+        clusters, skips = [], []
         for cluster_num, num_layers_in_cluster in enumerate(num_layers):
+            skips.append(MolecularConvolution(
+                name='{}_cluster{}_skip'.format(name, cluster_num),
+                radial_factory=self.radial_factory,
+                si_units=si_units[cluster_num],
+                output_orders=self.output_orders,
+                activation=self.activation,
+                dynamic=self.dynamic
+            ))
+            layers = []
             for layer_num in range(num_layers_in_cluster):
                 layers.append(
                     MolecularConvolution(
@@ -107,22 +116,28 @@ class Builder(object):
                         dynamic=self.dynamic
                     )
                 )
-        return layers
+            clusters.append(layers)
+        if self.residual:
+            return clusters, skips
+        else:
+            return [layer for cluster in clusters for layer in cluster]
 
-    def get_learned_tensors(self, tensors, point_cloud, layers=None):
-        layers = layers or self.get_layers()
-        learned_output = tensors
-        for layer_num, layer in enumerate(layers):
-            if layer_num == 0:
-                learned_output = layer(point_cloud + learned_output)
-            elif self.residual:  # FIXME: Is this really residual?
-                learned_output = [
-                    Add()([x, y]) for x, y in zip(learned_output,
-                                                  layer(point_cloud + learned_output))
-                ]
-            else:
-                learned_output = layer(point_cloud + learned_output)
-        return learned_output
+    def get_learned_tensors(self, tensors, point_cloud, clusters=None):
+        clusters = clusters or self.get_layers()
+        output = tensors
+        if self.residual:
+            clusters, skips = clusters
+            for cluster, skip in zip(clusters, skips):
+                shortcut = output
+                for layer in cluster:
+                    output = layer(point_cloud + output)
+                shortcut = skip(point_cloud + shortcut)
+                output = Add()([output, shortcut])
+        else:
+            for layer_num, layer in enumerate(clusters):
+                output = layer(point_cloud + output)
+
+        return output
 
     def get_learned_output(self, inputs: list):
         inputs = [inputs[0], inputs[-1]]  # General case for a single molecule as input (r, z)
