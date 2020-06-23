@@ -5,7 +5,7 @@ from datetime import datetime
 run_config = {  # Defines kwargs used when running a job
     'storage_dir': './sacred_storage',
     'model_path': './model.hdf5',
-    'epochs': 250,
+    'epochs': 100,
     'test': True,
     'use_strategy': True,
     'loss': 'mae',
