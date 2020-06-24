@@ -181,7 +181,7 @@ class DefaultJob(Job):
             x_train, y_train = loader.few_examples()
             val, x_test, y_test = None, None, None
         else:
-            (x_train, y_train), val, (x_test, y_test) = loader.load_data()
+            (x_train, y_train), val, (x_test, y_test) = loader.load_data(**config['load_kwargs'])
         data = ((x_train, y_train), val, (x_test, y_test))
         return loader, data
 

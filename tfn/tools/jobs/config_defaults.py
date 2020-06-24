@@ -22,7 +22,10 @@ loader_config = {  # Passed directly to loader classes
     'loader_type': 'qm9_loader',
     'map_atoms': True,
     'splitting': '85:10:5',
-    'pre_load': True
+    'pre_load': True,
+    'load_kwargs': {
+        'cache': True
+    }
 }
 
 # SingleModel Only
@@ -89,10 +92,10 @@ tb_config = {  # Passed directly to tensorboard callback
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     'monitor': 'val_loss',
     'factor': 0.1,
-    'patience': 20,
+    'patience': 8,
     'verbose': 1,
-    'min_delta': 0.0001,
-    'cooldown': 10,
+    'min_delta': 0.001,
+    'cooldown': 5,
     'min_lr': 0.00001
 }
 
