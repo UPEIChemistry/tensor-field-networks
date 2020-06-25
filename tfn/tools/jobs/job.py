@@ -194,6 +194,7 @@ class DefaultJob(Job):
             x=x_train, y=y_train,
             epochs=self.exp_config['run_config']['epochs'],
             validation_data=val,
+            class_weight=self.exp_config['run_config']['class_weight'],
             callbacks=[
                 TensorBoard(**self.exp_config['tb_config']),
                 ReduceLROnPlateau(**self.exp_config['lr_config'])

@@ -11,6 +11,7 @@ run_config = {  # Defines kwargs used when running a job
     'loss': 'mae',
     'optimizer': 'adam',
     'loss_weights': None,
+    'class_weight': None,
     'metrics': None,
     'run_eagerly': False,
     'select_few': False,
