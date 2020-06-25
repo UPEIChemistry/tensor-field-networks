@@ -13,7 +13,7 @@ class DataLoader(object):
                  path: str,
                  map_atoms: bool = True,
                  splitting: Union[str, None] = '70:20:10',
-                 pre_load: bool = True,
+                 pre_load: bool = False,
                  num_atoms: int = None,
                  **kwargs
                  ):

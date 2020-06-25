@@ -40,6 +40,30 @@ class TestTSLoader:
         assert len(data[0][0]) == 5  # Z, R, RC, PC, P
         assert len(data[0][1]) == 1  # TS
 
+    def test_energy_serving(self):
+        loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
+        data = loader.load_data(output_type='energies')
+        assert len(data) == 3
+        assert len(data[0][0]) == 5
+        assert len(data[0][1][0].shape) == 1
+
+    def test_serving_both(self):
+        loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
+        data = loader.load_data(output_type='both')
+        assert len(data) == 3
+        assert len(data[0][0]) == 5
+        assert len(data[0][1]) == 2
+        assert len(data[0][1][0].shape) == 3
+        assert len(data[0][1][1].shape) == 1
+
+    def test_classification_data(self):
+        loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
+        data = loader.load_data(output_type='classifier')
+        assert len(data) == 3
+        assert len(data[0][0]) == 2
+        assert len(data[0][1]) == 1
+        assert len(data[0][1][0].shape) == 1
+
 
 class TestSN2Loader:
     def test_load_sn2_data(self):

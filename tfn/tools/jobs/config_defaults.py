@@ -22,7 +22,7 @@ loader_config = {  # Passed directly to loader classes
     'loader_type': 'qm9_loader',
     'map_atoms': True,
     'splitting': '85:10:5',
-    'pre_load': True,
+    'pre_load': False,
     'load_kwargs': {
         'cache': True
     }

@@ -78,11 +78,8 @@ class TSLoader(DataLoader):
                 ('reactant', 'reactant_complex', 'ts', 'product_complex', 'product')
             }
             energies = {
-                structure_type: self.pad_along_axis(
-                    np.asarray(dataset['{}/energies'.format(structure_type)]),
-                    self.num_atoms
-                ) for structure_type in
-                ('reactant', 'ts', 'product')
+                structure_type: np.asarray(dataset['{}/energies'.format(structure_type)])
+                for structure_type in ('reactant', 'ts', 'product')
             }
 
         # Remap
@@ -115,16 +112,7 @@ class TSLoader(DataLoader):
         # Select requested inputs/outputs
         input_type = kwargs.get('input_type', 'cartesians').lower()
         output_type = kwargs.get('output_type', 'cartesians').lower()
-        if input_type == 'classifier' or output_type == 'classifier':
-            atomic_nums = np.tile(atomic_nums, (5, 1))
-            cartesians = np.concatenate(
-                [a for a in cartesians.values()],
-                axis=0)
-            labels = np.zeros((5 * len(atomic_nums),))
-            labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
-            x = [atomic_nums, cartesians]
-            y = [labels]
-        elif input_type == 'energies':
+        if input_type == 'energies':
             x.extend(x_energies)
         elif input_type == 'both':
             x.extend(x_cartesians)
@@ -138,6 +126,21 @@ class TSLoader(DataLoader):
             y.extend(y_energies)
         else:
             y.extend(y_cartesians)
+
+        # Classifier data is of a very diff. form
+        if input_type == 'classifier' or output_type == 'classifier':
+            tiled_atomic_nums = np.tile(atomic_nums, (5, 1))
+            cartesians = np.concatenate(
+                [a for a in cartesians.values()],
+                axis=0)
+            labels = np.zeros((len(tiled_atomic_nums),))
+            labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
+
+            # Shuffle and set vars
+            s = np.arange(len(labels))
+            np.random.shuffle(s)
+            x = [tiled_atomic_nums[s], cartesians[s]]
+            y = [labels[s]]
 
         # Split and serve data
         self._data = self.split_dataset(
