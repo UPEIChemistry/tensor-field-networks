@@ -64,6 +64,11 @@ class TestTSLoader:
         assert len(data[0][1]) == 1
         assert len(data[0][1][0].shape) == 1
 
+    def test_siamese_data(self):
+        loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
+        data = loader.load_data(output_type='siamese')
+        assert False
+
 
 class TestSN2Loader:
     def test_load_sn2_data(self):

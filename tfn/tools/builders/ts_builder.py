@@ -62,3 +62,20 @@ class TSBuilder(Builder):
                 'kwarg `output_type` has unknown value: {}'.format(str(self.output_type)))
 
         return outputs
+
+
+class TSClassifierBuilder(TSBuilder):
+    def get_inputs(self):
+        return [
+            Input([self.num_atoms, ], name='atomic_nums', dtype='int32'),
+            Input([self.num_atoms, 3], name='cartesians', dtype='float32')
+        ]
+
+
+class TSSiameseClassifierBuilder(TSClassifierBuilder):
+    def get_inputs(self):
+        return [
+            Input([self.num_atoms, ], name='atomic_nums', dtype='int32'),
+            Input([self.num_atoms, 3], name='first_cartesians', dtype='float32'),
+            Input([self.num_atoms, 3], name='second_cartesians', dtype='float32')
+        ]

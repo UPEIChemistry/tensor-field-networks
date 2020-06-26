@@ -1,5 +1,8 @@
 from h5py import File
+from scipy.special import comb
 import numpy as np
+
+from atomic_images.np_layers import DistanceMatrix
 
 from . import DataLoader
 
@@ -57,9 +60,9 @@ class TSLoader(DataLoader):
         :param kwargs: Possible kwargs:
             'cache': bool. Defaults to True.
             'input_type': str. Defaults to 'cartesians'. Possible values include ['cartesians',
-                'energies', 'classifier'],
+                'energies', 'classifier', 'siamese'],
             'output_type': str. Defaults to 'cartesians'. Possible values include ['cartesians',
-            'energies', 'both', 'classifier']
+            'energies', 'both', 'classifier', 'siamese']
         :return: data in the format: [(x_train, y_train), (x_val, y_val), (x_test, y_test)]
         """
         if self._data is not None and kwargs.get('cache', True):
@@ -109,6 +112,14 @@ class TSLoader(DataLoader):
             cartesians['ts']
         ]
 
+        # For classifiers
+        tiled_atomic_nums = np.tile(atomic_nums, (5, 1))
+        tiled_cartesians = np.concatenate(
+            [a for a in cartesians.values()],
+            axis=0)
+        labels = np.zeros((len(tiled_atomic_nums),), dtype='int32')
+        labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
+
         # Select requested inputs/outputs
         input_type = kwargs.get('input_type', 'cartesians').lower()
         output_type = kwargs.get('output_type', 'cartesians').lower()
@@ -127,20 +138,32 @@ class TSLoader(DataLoader):
         else:
             y.extend(y_cartesians)
 
-        # Classifier data is of a very diff. form
         if input_type == 'classifier' or output_type == 'classifier':
-            tiled_atomic_nums = np.tile(atomic_nums, (5, 1))
-            cartesians = np.concatenate(
-                [a for a in cartesians.values()],
-                axis=0)
-            labels = np.zeros((len(tiled_atomic_nums),))
-            labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
-
             # Shuffle and set vars
             s = np.arange(len(labels))
             np.random.shuffle(s)
-            x = [tiled_atomic_nums[s], cartesians[s]]
+            x = [tiled_atomic_nums[s], tiled_cartesians[s]]
             y = [labels[s]]
+
+        elif input_type == 'siamese' or output_type == 'siamese':
+            # Need x to be of shape: [(batch, atoms, 3), (batch, atoms, 3)]
+            x1 = np.zeros((comb(len(tiled_atomic_nums), 2, exact=True), self.num_atoms, 3))
+            x2 = np.zeros_like(x1)
+            diff = np.where(
+                (np.expand_dims(labels, -1) - np.expand_dims(labels, -2)) != 0,
+                1,
+                0
+            )
+            indices = np.triu_indices(diff.shape[0], 1)
+            diff.reshape((-1, ))
+            diff = diff[indices]
+            for i, i_cartesians in enumerate(tiled_cartesians):
+                if i != 0:
+                    i += j
+                for j, j_cartesians in enumerate(tiled_cartesians):
+                    j += i
+                    x1[j] = i_cartesians
+                    x2[j] = j_cartesians
 
         # Split and serve data
         self._data = self.split_dataset(
