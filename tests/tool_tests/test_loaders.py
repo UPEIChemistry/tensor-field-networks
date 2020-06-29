@@ -37,7 +37,15 @@ class TestTSLoader:
         data = loader.load_data()
         assert len(data) == 3
         assert len(data[0]) == 2
-        assert len(data[0][0]) == 5  # Z, R, RC, PC, P
+        assert len(data[0][0]) == 3  # Z, R, P
+        assert len(data[0][1]) == 1  # TS
+
+    def test_complexes(self):
+        loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5')
+        data = loader.load_data('use_complexes')
+        assert len(data) == 3
+        assert len(data[0]) == 2
+        assert len(data[0][0]) == 3  # Z, RC, PC
         assert len(data[0][1]) == 1  # TS
 
     def test_energy_serving(self):
@@ -53,7 +61,16 @@ class TestTSLoader:
         assert len(data) == 3
         assert len(data[0][0]) == 5
         assert len(data[0][1]) == 2
-        assert len(data[0][1][0].shape) == 3
+        assert data[0][1][0].shape[1:] == (loader.num_atoms, 3)
+        assert len(data[0][1][1].shape) == 1
+
+    def test_distance_matrix(self):
+        loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
+        data = loader.load_data(output_type='both', output_distance_matrix=True)
+        assert len(data) == 3
+        assert len(data[0][0]) == 5
+        assert len(data[0][1]) == 2
+        assert data[0][1][0].shape[1:] == (loader.num_atoms, loader.num_atoms)
         assert len(data[0][1][1].shape) == 1
 
     def test_classification_data(self):
@@ -67,7 +84,10 @@ class TestTSLoader:
     def test_siamese_data(self):
         loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
         data = loader.load_data(output_type='siamese')
-        assert False
+        assert len(data) == 3
+        assert data[0][0][0].shape[1:] == (2, loader.num_atoms,)
+        assert data[0][0][1].shape[1:] == (2, loader.num_atoms, 3)
+        assert len(data[0][1]) == 1
 
 
 class TestSN2Loader:

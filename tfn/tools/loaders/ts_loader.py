@@ -1,5 +1,4 @@
 from h5py import File
-from scipy.special import comb
 import numpy as np
 
 from atomic_images.np_layers import DistanceMatrix
@@ -60,7 +59,7 @@ class TSLoader(DataLoader):
         :param kwargs: Possible kwargs:
             'cache': bool. Defaults to True.
             'input_type': str. Defaults to 'cartesians'. Possible values include ['cartesians',
-                'energies', 'classifier', 'siamese'],
+                'classifier', 'siamese'],
             'output_type': str. Defaults to 'cartesians'. Possible values include ['cartesians',
             'energies', 'both', 'classifier', 'siamese']
         :return: data in the format: [(x_train, y_train), (x_val, y_val), (x_test, y_test)]
@@ -92,78 +91,37 @@ class TSLoader(DataLoader):
         if kwargs.get('return_maxz', False):
             return
 
-        # Set up possible inputs/outputs
-        x, y = [], []
-        x_energies = [
-            energies['reactant'],
-            energies['product']
-        ]
-        x_cartesians = [
-            atomic_nums,
-            cartesians['reactant'],
-            cartesians['reactant_complex'],
-            cartesians['product'],
-            cartesians['product_complex']
-        ]
-        y_energies = [
-            energies['ts']
-        ]
-        y_cartesians = [
-            cartesians['ts']
-        ]
-
-        # For classifiers
-        tiled_atomic_nums = np.tile(atomic_nums, (5, 1))
-        tiled_cartesians = np.concatenate(
-            [a for a in cartesians.values()],
-            axis=0)
-        labels = np.zeros((len(tiled_atomic_nums),), dtype='int32')
-        labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
-
-        # Select requested inputs/outputs
+        # Determine I/O data
         input_type = kwargs.get('input_type', 'cartesians').lower()
         output_type = kwargs.get('output_type', 'cartesians').lower()
-        if input_type == 'energies':
-            x.extend(x_energies)
-        elif input_type == 'both':
-            x.extend(x_cartesians)
-            x.extend(x_energies)
-        else:
-            x.extend(x_cartesians)
-        if output_type == 'energies':
-            y.extend(y_energies)
-        elif output_type == 'both':
-            y.extend(y_cartesians)
-            y.extend(y_energies)
-        else:
-            y.extend(y_cartesians)
 
         if input_type == 'classifier' or output_type == 'classifier':
-            # Shuffle and set vars
-            s = np.arange(len(labels))
-            np.random.shuffle(s)
-            x = [tiled_atomic_nums[s], tiled_cartesians[s]]
-            y = [labels[s]]
+            tiled_atomic_nums, tiled_cartesians, labels = self.tile_arrays(atomic_nums, cartesians)
+            x, y = self.shuffle_arrays([tiled_atomic_nums, tiled_cartesians], [labels], len(labels))
 
         elif input_type == 'siamese' or output_type == 'siamese':
-            # Need x to be of shape: [(batch, atoms, 3), (batch, atoms, 3)]
-            x1 = np.zeros((comb(len(tiled_atomic_nums), 2, exact=True), self.num_atoms, 3))
-            x2 = np.zeros_like(x1)
-            diff = np.where(
-                (np.expand_dims(labels, -1) - np.expand_dims(labels, -2)) != 0,
-                1,
-                0
-            )
-            indices = np.triu_indices(diff.shape[0], 1)
-            diff.reshape((-1, ))
-            diff = diff[indices]
-            for i, i_cartesians in enumerate(tiled_cartesians):
-                if i != 0:
-                    i += j
-                for j, j_cartesians in enumerate(tiled_cartesians):
-                    j += i
-                    x1[j] = i_cartesians
-                    x2[j] = j_cartesians
+            x, y = self.make_siamese_dataset(*self.tile_arrays(atomic_nums, cartesians))
+            x, y = self.shuffle_arrays(x, y, len(y[0]))
+
+        else:  # Regression dataset
+            x = [
+                atomic_nums,
+                cartesians['reactant_complex'] if kwargs.get('use_complexes', False)
+                else cartesians['reactant'],
+                cartesians['product_complex'] if kwargs.get('use_complexes', False)
+                else cartesians['product']
+            ]
+            y = [
+                DistanceMatrix()(cartesians['ts'])
+                if kwargs.get('output_distance_matrix', False) else cartesians['ts'],
+                energies['ts']
+            ]
+            if output_type == 'energies':
+                y.pop(0)
+            elif output_type == 'both':
+                pass
+            else:
+                y.pop(1)
 
         # Split and serve data
         self._data = self.split_dataset(
@@ -171,3 +129,31 @@ class TSLoader(DataLoader):
             length=len(atomic_nums)
         )
         return self._data
+
+    def make_siamese_dataset(self, tiled_atomic_nums, tiled_cartesians, labels):
+        # Make x shape: (mols, mols, 2, atoms, 3) Convert for output -> (batch, 2, atoms, 3)
+        c = np.zeros((len(labels), len(labels), 2, self.num_atoms, 3))
+        a = np.zeros(c.shape[:-1])
+        diff = np.where(
+            (np.expand_dims(labels, -1) - np.expand_dims(labels, -2)) != 0, 1, 0)
+        indices = np.triu_indices(diff.shape[0], 1)
+        for i, (i_atomic_nums, i_cartesians) in enumerate(zip(tiled_atomic_nums, tiled_cartesians)):
+            for j, (j_atomic_nums, j_cartesians) \
+                    in enumerate(zip(tiled_atomic_nums, tiled_cartesians)):
+                a[i, j, 1], c[i, j, 1] = i_atomic_nums, i_cartesians
+                a[i, j, 0], c[i, j, 0] = j_atomic_nums, j_cartesians
+
+        # assign data
+        labels = [diff[indices]]
+        x = [a[indices], c[indices]]
+        return x, labels
+
+    def tile_arrays(self, atomic_nums, cartesians):
+        """:return: tiled/concatenated arrays: [atomic_nums, cartesians <- (concat), labels]"""
+        tiled_atomic_nums = np.tile(atomic_nums, (5, 1))
+        tiled_cartesians = np.concatenate(
+            [a for a in cartesians.values()],
+            axis=0)
+        labels = np.zeros((len(tiled_atomic_nums),), dtype='int32')
+        labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
+        return tiled_atomic_nums, tiled_cartesians, labels

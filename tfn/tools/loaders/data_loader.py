@@ -129,3 +129,16 @@ class DataLoader(object):
         npad[axis] = (0, pad_size)
         b = np.pad(array, pad_width=npad, mode='constant', constant_values=0)
         return b
+
+    def shuffle_arrays(self, x, y, length):
+        """
+        :param x: list. input data to be shuffled.
+        :param y: list. output data to be shuffled.
+        :param length: int. number of examples in dataset.
+        :return: List[list]. Input and output shuffled.
+        """
+        s = np.arange(length)
+        np.random.shuffle(s)
+        inp = [a[s] for a in x]
+        out = [a[s] for a in y]
+        return inp, out
