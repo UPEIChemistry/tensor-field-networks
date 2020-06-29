@@ -20,7 +20,7 @@ class TSBuilder(Builder):
         ]
 
     def get_learned_output(self, inputs: list):
-        r, p, z = inputs
+        z, r, p = inputs
         r_point_cloud = self.point_cloud_layer([r, z])
         p_point_cloud = self.point_cloud_layer([p, z])
         embedding_layer = MolecularSelfInteraction(self.embedding_units, name='embedding')
@@ -75,7 +75,9 @@ class TSClassifierBuilder(TSBuilder):
 class TSSiameseClassifierBuilder(TSClassifierBuilder):
     def get_inputs(self):
         return [
-            Input([self.num_atoms, ], name='atomic_nums', dtype='int32'),
-            Input([self.num_atoms, 3], name='first_cartesians', dtype='float32'),
-            Input([self.num_atoms, 3], name='second_cartesians', dtype='float32')
+            Input([2, self.num_atoms, ], name='atomic_nums', dtype='int32'),
+            Input([2, self.num_atoms, 3], name='cartesians', dtype='float32')
         ]
+
+    def get_learned_output(self, inputs: list):
+        pass
