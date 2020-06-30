@@ -19,33 +19,29 @@ class TSBuilder(Builder):
             Input([self.num_atoms, 3], name='product_cartesians', dtype='float32')
         ]
 
+    def get_dual_trunks(self, point_clouds: list):
+        embedding_layer = MolecularSelfInteraction(self.embedding_units, name='embedding')
+        embeddings = [embedding_layer(
+            pc, Lambda(lambda x: K.expand_dims(x, axis=-1))(pc))
+            for pc in point_clouds]
+        layers = self.get_layers()
+        inputs = [self.get_learned_tensors(e, pc, layers)
+                  for e, pc in zip(embeddings, point_clouds)]
+        return inputs
+
     def get_learned_output(self, inputs: list):
         z, r, p = inputs
-        r_point_cloud = self.point_cloud_layer([r, z])
-        p_point_cloud = self.point_cloud_layer([p, z])
-        embedding_layer = MolecularSelfInteraction(self.embedding_units, name='embedding')
-        reactant_embedding = embedding_layer([
-                r_point_cloud[0],
-                Lambda(lambda x: K.expand_dims(x, axis=-1))(r_point_cloud[0])
-            ])
-        product_embedding = embedding_layer([
-            p_point_cloud[0],
-            Lambda(lambda x: K.expand_dims(x, axis=-1))(p_point_cloud[0])
-        ])
-        layers = self.get_layers()
-        reactant_input = self.get_learned_tensors(reactant_embedding, r_point_cloud, layers)
-        product_input = self.get_learned_tensors(product_embedding, p_point_cloud, layers)
-        return [r_point_cloud, p_point_cloud], [reactant_input, product_input]
+        point_clouds = [self.point_cloud_layer([x, z]) for x in (r, p)]
+        inputs = self.get_dual_trunks(point_clouds)
+        return point_clouds, inputs
 
     def get_model_output(self, point_cloud: list, inputs: list):
-        r_point_cloud, p_point_cloud = point_cloud
-        one_hot = r_point_cloud[0]
-        [reactant_input, product_input] = inputs
-        tensors = [Add()([r, p]) for r, p in zip(reactant_input, product_input)]
+        one_hot = point_cloud[0][0]
+        tensors = Add()(inputs)
         tensors = self.get_final_output(one_hot, tensors)
         outputs = []
         if self.output_type == 'dist_matrix' or self.output_type == 'both':
-            cartesians = Lambda(lambda x: K.squeeze(x, axis=-2), name='vectors')(tensors[-1])
+            cartesians = Lambda(lambda x: K.squeeze(x, axis=-2), name='cartesians')(tensors[-1])
             dist_matrix = DistanceMatrix(name='distance_matrix')(cartesians)
             outputs.append(dist_matrix)
         if self.output_type == 'energy' or self.output_type == 'both':
@@ -64,15 +60,11 @@ class TSBuilder(Builder):
         return outputs
 
 
-class TSClassifierBuilder(TSBuilder):
-    def get_inputs(self):
-        return [
-            Input([self.num_atoms, ], name='atomic_nums', dtype='int32'),
-            Input([self.num_atoms, 3], name='cartesians', dtype='float32')
-        ]
+class TSSiameseClassifierBuilder(TSBuilder):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.final_si_units = 1
 
-
-class TSSiameseClassifierBuilder(TSClassifierBuilder):
     def get_inputs(self):
         return [
             Input([2, self.num_atoms, ], name='atomic_nums', dtype='int32'),
@@ -80,4 +72,27 @@ class TSSiameseClassifierBuilder(TSClassifierBuilder):
         ]
 
     def get_learned_output(self, inputs: list):
-        pass
+        z, c = inputs
+        point_clouds = [self.point_cloud_layer([a, b])
+                        for a, b in zip(
+                [c[:, 0], c[:, 1]], z[:, 0], z[:, 1]  # Split z, c into 4 arrays
+            )]
+        inputs = self.get_dual_trunks(point_clouds)
+        return point_clouds, inputs
+
+    def get_model_output(self, point_cloud: list, inputs: list):
+        one_hot = point_cloud[0][0]
+        tensors = Lambda(lambda x: K.abs(x[1] - x[0]))(inputs)  # absolute difference
+        pass  # TODO: Pick up here!
+
+
+# Different from existing TSBuilders
+class TSClassifierBuilder(Builder):
+    def get_inputs(self):
+        return [
+            Input([self.num_atoms, ], name='atomic_nums', dtype='int32'),
+            Input([self.num_atoms, 3], name='cartesians', dtype='float32')
+        ]
+
+    def get_model_output(self, point_cloud: list, inputs: list):
+        pass  # TODO: Implement this!
