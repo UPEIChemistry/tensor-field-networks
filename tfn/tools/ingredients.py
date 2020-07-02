@@ -2,7 +2,7 @@ import os
 
 from sacred import Ingredient
 
-from .builders import EnergyBuilder, ForceBuilder, TSBuilder
+from .builders import EnergyBuilder, ForceBuilder, TSBuilder, TSSiameseClassifierBuilder
 from .hyper_factory import HyperFactory
 from .loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader
 from .loggers import SacredMetricLogger
@@ -86,6 +86,10 @@ def get_builder(
         )
     elif builder_type == 'ts_builder':
         return TSBuilder(
+            **kwargs
+        )
+    elif builder_type == 'siamese_builder':
+        return TSSiameseClassifierBuilder(
             **kwargs
         )
     else:

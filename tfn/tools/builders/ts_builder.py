@@ -2,7 +2,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Input, Lambda, Add
 
 from atomic_images.layers import DistanceMatrix, Unstandardization
-from tfn.layers import MolecularSelfInteraction
+from tfn.layers import MolecularSelfInteraction, MolecularConvolution, MolecularActivation
 
 from . import Builder
 
@@ -21,9 +21,9 @@ class TSBuilder(Builder):
 
     def get_dual_trunks(self, point_clouds: list):
         embedding_layer = MolecularSelfInteraction(self.embedding_units, name='embedding')
-        embeddings = [embedding_layer(
-            pc, Lambda(lambda x: K.expand_dims(x, axis=-1))(pc))
-            for pc in point_clouds]
+        embeddings = [embedding_layer([
+            pc[0], Lambda(lambda x: K.expand_dims(x, axis=-1))(pc[0])
+        ]) for pc in point_clouds]
         layers = self.get_layers()
         inputs = [self.get_learned_tensors(e, pc, layers)
                   for e, pc in zip(embeddings, point_clouds)]
@@ -61,10 +61,6 @@ class TSBuilder(Builder):
 
 
 class TSSiameseClassifierBuilder(TSBuilder):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.final_si_units = 1
-
     def get_inputs(self):
         return [
             Input([2, self.num_atoms, ], name='atomic_nums', dtype='int32'),
@@ -75,18 +71,44 @@ class TSSiameseClassifierBuilder(TSBuilder):
         z, c = inputs
         point_clouds = [self.point_cloud_layer([a, b])
                         for a, b in zip(
-                [c[:, 0], c[:, 1]], z[:, 0], z[:, 1]  # Split z, c into 4 arrays
+                [c[:, 0], c[:, 1]], [z[:, 0], z[:, 1]]  # Split z, c into 4 arrays
             )]
         inputs = self.get_dual_trunks(point_clouds)
         return point_clouds, inputs
 
     def get_model_output(self, point_cloud: list, inputs: list):
-        one_hot = point_cloud[0][0]
-        tensors = Lambda(lambda x: K.abs(x[1] - x[0]))(inputs)  # absolute difference
-        pass  # TODO: Pick up here!
+        # Select smaller molecule
+        one_hots = [p[0] for p in point_cloud]  # [(mols, atoms, max_z), ...]
+        one_hot = Lambda(
+            lambda x: K.switch(
+                K.sum(K.sum(x[0], axis=-1), axis=-1) >
+                K.sum(K.sum(x[1], axis=-1), axis=-1),
+                x[1],
+                x[0]
+            ))(one_hots)
+
+        # Truncate to RO0 outputs
+        layer = MolecularConvolution(
+            name='energy_layer',
+            radial_factory=self.radial_factory,
+            si_units=self.final_si_units,
+            activation=self.activation,
+            output_orders=[0],
+            dynamic=self.dynamic
+        )
+        outputs = [layer(z + x)[0] for x, z in zip(inputs, point_cloud)]
+        output = Lambda(lambda x: K.abs(x[1] - x[0]), name='absolute_difference')(outputs)
+
+        # Perform sigmoid (each atom "votes" on which class it thinks it's part of)
+        output = MolecularSelfInteraction(units=1)([one_hot, output])  # (mols, atoms, 1, 1)
+        output = MolecularActivation(activation='sigmoid')([one_hot] + output)
+        output = Lambda(
+            lambda x: K.squeeze(K.squeeze(x, axis=-1), axis=-1), name='squeeze'
+        )(output[0])  # (mols, atoms)
+        output = Lambda(lambda x: K.mean(x, axis=-1), name='molecular_average')(output)
+        return output
 
 
-# Different from existing TSBuilders
 class TSClassifierBuilder(Builder):
     def get_inputs(self):
         return [

@@ -47,7 +47,6 @@ def run_config():
     return {
         'epochs': 1,
         'test': False,
-        'select_few': 50,
         'use_strategy': False,
         'run_eagerly': True,
         'model_path': str(test_model_path)

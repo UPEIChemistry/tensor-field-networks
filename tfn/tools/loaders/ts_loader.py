@@ -98,12 +98,15 @@ class TSLoader(DataLoader):
         if input_type == 'classifier' or output_type == 'classifier':
             tiled_atomic_nums, tiled_cartesians, labels = self.tile_arrays(atomic_nums, cartesians)
             x, y = self.shuffle_arrays([tiled_atomic_nums, tiled_cartesians], [labels], len(labels))
+            length = len(labels)
 
         elif input_type == 'siamese' or output_type == 'siamese':
             x, y = self.make_siamese_dataset(*self.tile_arrays(atomic_nums, cartesians))
             x, y = self.shuffle_arrays(x, y, len(y[0]))
+            length = len(y[0])
 
         else:  # Regression dataset
+            length = len(atomic_nums)
             x = [
                 atomic_nums,
                 cartesians['reactant_complex'] if kwargs.get('use_complexes', False)
@@ -126,7 +129,7 @@ class TSLoader(DataLoader):
         # Split and serve data
         self._data = self.split_dataset(
             data=[x, y],
-            length=len(atomic_nums)
+            length=length
         )
         return self._data
 

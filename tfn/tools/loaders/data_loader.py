@@ -54,8 +54,9 @@ class DataLoader(object):
         """
         raise NotImplementedError
 
-    def few_examples(self, num_examples: int = 5):
-        train, *_ = self.load_data()  # train is [x, y] where x, y are lists with 1 or more item(s)
+    def few_examples(self, num_examples: int = 5, **kwargs):
+        train, *_ = self.load_data(**kwargs)  # train is [x, y] where x, y are lists with 1 or more
+        # item(s)
         sample = [[], []]
         for l, data in zip(sample, train):
             for d in data:

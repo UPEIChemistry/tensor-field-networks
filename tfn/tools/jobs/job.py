@@ -178,7 +178,7 @@ class DefaultJob(Job):
         config = config or self.exp_config['loader_config']
         loader = get_data_loader(**config)
         if self.exp_config['run_config']['select_few']:
-            x_train, y_train = loader.few_examples()
+            x_train, y_train = loader.few_examples(**config['load_kwargs'])
             val, x_test, y_test = None, None, None
         else:
             (x_train, y_train), val, (x_test, y_test) = loader.load_data(**config['load_kwargs'])
