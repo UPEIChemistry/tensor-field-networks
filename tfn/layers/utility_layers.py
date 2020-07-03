@@ -4,6 +4,7 @@ from tensorflow.keras.layers import Layer
 
 from atomic_images.layers import (OneHot, CosineBasis, ShiftedCosineBasis, GaussianBasis,
                                   DistanceMatrix)
+from tensorflow.keras.layers import Lambda
 
 from .. import utils
 
@@ -31,6 +32,7 @@ class Preprocessing(Layer):
                  basis_config=None,
                  basis_type='gaussian',
                  **kwargs):
+        self.sum_atoms = kwargs.pop('sum_atoms', False)
         super().__init__(**kwargs)
         self.max_z = max_z
         if basis_config is None:
@@ -48,14 +50,18 @@ class Preprocessing(Layer):
             basis_function = GaussianBasis(**self.basis_config)
         self.basis_function = basis_function
         self.distance_matrix = DistanceMatrix()
-        self.unit_vectors = UnitVectors()
+        self.unit_vectors = UnitVectors(self.sum_atoms)
 
     def call(self, inputs, **kwargs):
         r, z = inputs
+        rbf = self.basis_function(self.distance_matrix(r))  # (batch, points, points, basis_fns)
+        vectors = self.unit_vectors(r)  # (batch, points, points, 3) or (batch, points, 3)
+        if self.sum_atoms:
+            rbf = Lambda(lambda x: K.sum(x, axis=-2))(rbf)
         return [
             self.one_hot(z),
-            self.basis_function(self.distance_matrix(r)),
-            self.unit_vectors(r)
+            rbf,
+            vectors
         ]
 
     def get_config(self):
@@ -83,10 +89,16 @@ class UnitVectors(Layer):
     Output:
         unit vectors between every point in every batch (..., batch, point, point, 3)
     """
+    def __init__(self, sum_atoms: bool = False, **kwargs):
+        self.sum_atoms = sum_atoms
+        super().__init__(**kwargs)
 
     def call(self, inputs, **kwargs):
-        i = K.expand_dims(inputs, axis=-2)
-        j = K.expand_dims(inputs, axis=-3)
-        v = i - j
+        if self.sum_atoms:
+            v = inputs
+        else:
+            i = K.expand_dims(inputs, axis=-2)
+            j = K.expand_dims(inputs, axis=-3)
+            v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
         return v / den

@@ -109,6 +109,7 @@ class Convolution(Layer, EquivariantLayer):
                  max_filter_order: Union[int, Iterable[bool]] = 1,
                  output_orders: list = None,
                  **kwargs):
+        self.sum_atoms = kwargs.pop('sum_atoms', False)
         factory_kwargs = kwargs.pop('factory_kwargs', {})
         super().__init__(**kwargs)
         if isinstance(radial_factory, str):
@@ -176,7 +177,8 @@ class Convolution(Layer, EquivariantLayer):
                         input_order=self.get_tensor_ro(shape),
                         filter_order=filter_order
                     ),
-                    filter_order=filter_order
+                    filter_order=filter_order,
+                    sum_atoms=self.sum_atoms
                 )
                 for filter_order in filter_orders
                 if self._possible_coefficient(self.get_tensor_ro(shape), filter_order)
@@ -244,9 +246,13 @@ class Convolution(Layer, EquivariantLayer):
                     no_coefficients=False
                 )
                 if coefficient is not False:
+                    if self.sum_atoms:
+                        equation = 'ijk,mafj,mafk->mafi'
+                    else:
+                        equation = 'ijk,mabfj,mbfk->mafi'
                     output_tensors.append(
                         Lambda(
-                            lambda x: tf.einsum('ijk,mabfj,mbfk->mafi', *x)
+                            lambda x: tf.einsum(equation, *x)
                         )([coefficient, hfilter, tensor])
                     )
                 else:
@@ -364,6 +370,7 @@ class HarmonicFilter(Layer, EquivariantLayer):
                  radial: Union[Model, str],
                  filter_order=0,
                  **kwargs):
+        self.sum_atoms = kwargs.pop('sum_atoms', False)
         super().__init__(**kwargs)
         self.filter_order = filter_order
         if isinstance(radial, str):
@@ -419,26 +426,27 @@ class HarmonicFilter(Layer, EquivariantLayer):
             return K.expand_dims(self.radial(image), axis=-1)
         elif self.filter_order == 1:
             masked_radial = self.mask_radial(self.radial(image), vectors)
-            # (batch, points, points, filter_dim, 3)
+            # (batch, points, points, 1, 3) * (batch, points, points, filters, 1)
             return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
         elif self.filter_order == 2:
             masked_radial = self.mask_radial(self.radial(image), vectors)
-            # (batch, points, points, filter_dim, 5)
-            return K.expand_dims(
-                self.l2_spherical_harmonic(vectors), axis=-2
-            ) * K.expand_dims(masked_radial, axis=-1)
+            # (batch, points, points, filter_dim, 5) * (batch, points, points, filters, 1)
+            return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2
+                                 ) * K.expand_dims(masked_radial, axis=-1)
         else:
             raise ValueError('Unsupported RO passed for filter_order, only capable of supplying '
                              'filters of up to and including RO2.')
 
-    @staticmethod
-    def mask_radial(radial, vectors):
+    def mask_radial(self, radial, vectors):
         l2_norm = Lambda(lambda x: tf.norm(x, axis=-1))(vectors)
         condition = K.expand_dims(l2_norm < K.epsilon(), axis=-1)
-        tile = K.tile(condition, [1, 1, 1, radial.shape[-1]])
+        if self.sum_atoms:
+            condition = K.tile(condition, [1, 1, radial.shape[-1]])
+        else:
+            condition = K.tile(condition, [1, 1, 1, radial.shape[-1]])
 
         # (batch, points, points, output_dim)
-        return K.switch(tile, K.zeros_like(radial), radial)
+        return K.switch(condition, K.zeros_like(radial), radial)
 
     @staticmethod
     def l2_spherical_harmonic(tensor):
