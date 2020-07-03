@@ -90,6 +90,13 @@ class TestMolecularConvolution:
         output = layers.MolecularConvolution()(list(random_onehot_rbf_vectors) + list(features))
         assert len(output) == 2
 
+    def test_sum_atoms(self, random_cartesians_and_z, random_features_and_targets):
+        point_cloud = layers.Preprocessing(max_z=5, sum_atoms=True)(random_cartesians_and_z)
+        assert len(point_cloud[1].shape) == 3
+        features, targets = random_features_and_targets
+        output = layers.MolecularConvolution(sum_atoms=True)(point_cloud + features)
+        assert len(output) == 2
+
 
 class TestHarmonicFilter:
     def test_ro0_filter(self, random_onehot_rbf_vectors):

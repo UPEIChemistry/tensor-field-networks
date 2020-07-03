@@ -12,6 +12,14 @@ class TestScalarModels:
         })
         job.run()
 
+    def test_sum_atoms(self, run_config, builder_config):
+        job = SingleModel({
+            'name': 'test',
+            'run_config': run_config,
+            'builder_config': dict(**builder_config, sum_atoms='cosine')
+        })
+        job.run()
+
     def test_cosine_basis(self, run_config, builder_config):
         job = SingleModel({
             'name': 'test',

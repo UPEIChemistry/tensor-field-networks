@@ -26,6 +26,7 @@ class Builder(object):
                  residual: bool = True,
                  activation: str = None,
                  dynamic: bool = True,
+                 sum_atoms: bool = False,
                  **kwargs):
         super().__init__(**kwargs)
         self.max_z = max_z
@@ -52,11 +53,13 @@ class Builder(object):
         self.residual = residual
         self.activation = activation
         self.dynamic = dynamic
+        self.sum_atoms = sum_atoms
 
     def build(self):
         r = Input([10, 3], dtype='float32')
         z = Input([10, ], dtype='int32')
-        point_cloud = Preprocessing(self.max_z)([r, z])  # Point cloud contains one_hot, rbf, vectors
+        # Point cloud contains: [one_hot, rbf, vectors]
+        point_cloud = Preprocessing(self.max_z, sum_atoms=self.sum_atoms)([r, z])
         expanded_onehot = Lambda(lambda x: K.expand_dims(x, axis=-1))(point_cloud[0])
         learned_output = SelfInteraction(self.embedding_units)(expanded_onehot)
         for i in range(self.num_layers):
@@ -65,7 +68,8 @@ class Builder(object):
                 radial_factory=self.radial_factory,
                 si_units=self.si_units,
                 activation=self.activation,
-                dynamic=self.dynamic
+                dynamic=self.dynamic,
+                sum_atoms=self.sum_atoms
             )
             if i == 0:
                 learned_output = conv(point_cloud + learned_output)
@@ -80,7 +84,8 @@ class Builder(object):
             si_units=1,  # For molecular energy output
             activation=self.activation,
             output_orders=[0],
-            dynamic=self.dynamic
+            dynamic=self.dynamic,
+            sum_atoms=self.sum_atoms
         )(point_cloud + learned_output)
         output = Lambda(lambda x: K.squeeze(x, axis=-1))(output[0])
         atomic_energies = Unstandardization(self.mu, self.sigma, trainable=self.trainable_offsets)(
@@ -91,7 +96,6 @@ class Builder(object):
 
 
 class TestSerializability:
-
     @staticmethod
     @contextmanager
     def temp_file(path):
@@ -103,13 +107,17 @@ class TestSerializability:
             except FileNotFoundError:
                 pass
 
-    def run_model(self, x, dynamic, eager):
+    def run_model(self, x, dynamic, eager, sum_atoms: bool = False):
         e = np.random.rand(2, 1)
-        builder = Builder(max_z=6, dynamic=dynamic)
+        builder = Builder(max_z=6, dynamic=dynamic, sum_atoms=sum_atoms)
         model = builder.build()
         model.compile(optimizer='adam', loss='mae', run_eagerly=eager)
         model.fit(x, e, epochs=2)
         return model
+
+    def test_sum_atoms(self, random_cartesians_and_z, dynamic, eager):
+        model = self.run_model(random_cartesians_and_z, dynamic, eager, sum_atoms=True)
+        assert True
 
     def test_save_weights(self, random_cartesians_and_z, dynamic, eager):
         model = self.run_model(random_cartesians_and_z, dynamic, eager)

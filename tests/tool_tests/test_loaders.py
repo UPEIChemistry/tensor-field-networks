@@ -61,14 +61,14 @@ class TestTSLoader:
         loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
         data = loader.load_data(output_type='energies')
         assert len(data) == 3
-        assert len(data[0][0]) == 5
+        assert len(data[0][0]) == 3
         assert len(data[0][1][0].shape) == 1
 
     def test_serving_both(self):
         loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
         data = loader.load_data(output_type='both')
         assert len(data) == 3
-        assert len(data[0][0]) == 5
+        assert len(data[0][0]) == 3
         assert len(data[0][1]) == 2
         assert data[0][1][0].shape[1:] == (loader.num_atoms, 3)
         assert len(data[0][1][1].shape) == 1
@@ -77,7 +77,7 @@ class TestTSLoader:
         loader = TSLoader(os.environ['DATADIR'] + '/ts.hdf5', pre_load=False)
         data = loader.load_data(output_type='both', output_distance_matrix=True)
         assert len(data) == 3
-        assert len(data[0][0]) == 5
+        assert len(data[0][0]) == 3
         assert len(data[0][1]) == 2
         assert data[0][1][0].shape[1:] == (loader.num_atoms, loader.num_atoms)
         assert len(data[0][1][1].shape) == 1
