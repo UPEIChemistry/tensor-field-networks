@@ -14,6 +14,15 @@ class TestQM9Loader:
         assert len(data[0][0]) == 2
         assert ceil(len(data[0][0][0]) / .7) == 133885.
 
+    def test_splitting(self):
+        loader = QM9DataDataLoader(os.environ['DATADIR'] + '/QM9_data_original.hdf5',
+                                   splitting='70:20:10')
+        data = loader.load_data()
+        assert len(data) == 3
+        assert isclose(len(data[0][0][0]), ceil(0.70 * 133885), abs_tol=1)
+        assert isclose(len(data[1][0][0]), ceil(0.20 * 133885), abs_tol=1)
+        assert isclose(len(data[2][0][0]), ceil(0.10 * 133885), abs_tol=1)
+
 
 class TestISO17Loader:
     def test_load_dual_data(self):

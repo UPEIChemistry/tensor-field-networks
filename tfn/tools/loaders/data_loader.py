@@ -104,11 +104,11 @@ class DataLoader(object):
                     )
                 )
             elif i == 2:
-                second_split = splits[1]
+                first_split, second_split = splits[:2]
                 output_data.append(
                     (
-                        [x[second_split:] for x in x_data],
-                        [y[second_split:] for y in y_data]
+                        [x[first_split + second_split:] for x in x_data],
+                        [y[first_split + second_split:] for y in y_data]
                     )
                 )
 
