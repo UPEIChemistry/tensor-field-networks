@@ -17,7 +17,8 @@ class EnergyBuilder(Builder):
             si_units=1,  # For molecular energy output
             activation=self.activation,
             output_orders=[0],
-            dynamic=self.dynamic
+            dynamic=self.dynamic,
+            sum_atoms=self.sum_atoms
         )(point_cloud + inputs)
         output = self.get_final_output(point_cloud[0], output)
         atomic_energies = Lambda(lambda x: K.squeeze(x, axis=-1), name='squeeze')(output[0])

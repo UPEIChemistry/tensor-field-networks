@@ -77,11 +77,11 @@ class TSLoader(DataLoader):
                     np.nan_to_num(dataset['{}/cartesians'.format(structure_type)]),
                     self.num_atoms
                 ) for structure_type in
-                ('reactant', 'reactant_complex', 'ts', 'product_complex', 'product')
+                ('ts', 'reactant', 'reactant_complex', 'product_complex', 'product')
             }
             energies = {
                 structure_type: np.asarray(dataset['{}/energies'.format(structure_type)])
-                for structure_type in ('reactant', 'ts', 'product')
+                for structure_type in ('ts', 'reactant', 'product')
             }
 
         # Remap
@@ -101,7 +101,9 @@ class TSLoader(DataLoader):
             length = len(labels)
 
         elif input_type == 'siamese' or output_type == 'siamese':
-            x, y = self.make_siamese_dataset(*self.tile_arrays(atomic_nums, cartesians))
+            x, y = self.make_siamese_dataset(*self.tile_arrays(
+                atomic_nums, cartesians, blacklist=None
+            ))
             x, y = self.shuffle_arrays(x, y, len(y[0]))
             length = len(y[0])
 
@@ -151,12 +153,13 @@ class TSLoader(DataLoader):
         x = [a[indices], c[indices]]
         return x, labels
 
-    def tile_arrays(self, atomic_nums, cartesians):
+    def tile_arrays(self, atomic_nums, cartesians, blacklist: list = None):
         """:return: tiled/concatenated arrays: [atomic_nums, cartesians <- (concat), labels]"""
-        tiled_atomic_nums = np.tile(atomic_nums, (5, 1))
+        blacklist = blacklist or []
+        tiled_atomic_nums = np.tile(atomic_nums, (5 - len(blacklist), 1))
         tiled_cartesians = np.concatenate(
-            [a for a in cartesians.values()],
+            [a for key, a in cartesians.items() if key not in blacklist],
             axis=0)
         labels = np.zeros((len(tiled_atomic_nums),), dtype='int32')
-        labels[2 * len(atomic_nums): 3 * len(atomic_nums) + 1] = 1
+        labels[:len(atomic_nums)] = 1
         return tiled_atomic_nums, tiled_cartesians, labels

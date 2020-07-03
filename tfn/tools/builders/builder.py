@@ -46,6 +46,7 @@ class Builder(object):
         self.residual = residual
         self.activation = activation
         self.dynamic = dynamic
+        self.sum_atoms = kwargs.pop('sum_atoms', False)
 
         self.use_scalars = kwargs.pop('use_scalars', True)
         if not self.use_scalars:
@@ -58,7 +59,8 @@ class Builder(object):
         self.point_cloud_layer = Preprocessing(
             self.max_z,
             kwargs.pop('basis_config', None),
-            kwargs.pop('basis_type', 'gaussian')
+            kwargs.pop('basis_type', 'gaussian'),
+            sum_atoms=self.sum_atoms
         )
         self.model = None
 
@@ -102,7 +104,8 @@ class Builder(object):
                 si_units=si_units[cluster_num],
                 output_orders=self.output_orders,
                 activation=self.activation,
-                dynamic=self.dynamic
+                dynamic=self.dynamic,
+                sum_atoms=self.sum_atoms
             ))
             layers = []
             for layer_num in range(num_layers_in_cluster):
@@ -113,7 +116,8 @@ class Builder(object):
                         si_units=si_units[cluster_num],
                         output_orders=self.output_orders,
                         activation=self.activation,
-                        dynamic=self.dynamic
+                        dynamic=self.dynamic,
+                        sum_atoms=self.sum_atoms
                     )
                 )
             clusters.append(layers)

@@ -94,7 +94,8 @@ class TSSiameseClassifierBuilder(TSBuilder):
             si_units=self.final_si_units,
             activation=self.activation,
             output_orders=[0],
-            dynamic=self.dynamic
+            dynamic=self.dynamic,
+            sum_atoms=self.sum_atoms
         )
         outputs = [layer(z + x)[0] for x, z in zip(inputs, point_cloud)]
         output = Lambda(lambda x: K.abs(x[1] - x[0]), name='absolute_difference')(outputs)
