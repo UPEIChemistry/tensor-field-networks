@@ -194,7 +194,7 @@ class DefaultJob(Job):
         kwargs = dict(
             x=x_train, y=y_train,
             epochs=self.exp_config['run_config']['epochs'],
-            batch_size=self.exp_config['run_configs']['batch_size'],
+            batch_size=self.exp_config['run_config']['batch_size'],
             validation_data=val,
             class_weight=self.exp_config['run_config']['class_weight'],
             callbacks=[

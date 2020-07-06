@@ -14,7 +14,9 @@ class Pipeline(SingleModel):
     NONTRANSFERABLE_LAYERS = (
         Unstandardization,
     )
-    BLACKLISTED_LAYER_NAMES = []
+    BLACKLISTED_LAYER_NAMES = [
+        'embedding'
+    ]
 
     @property
     def config_defaults(self):

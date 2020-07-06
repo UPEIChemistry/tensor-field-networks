@@ -93,7 +93,9 @@ class TestDualModels:
 
 class TestVectorModels:
     def test_ts_job(self, run_config, builder_config):
-        loader_config = {'loader_type': 'ts_loader'}
+        loader_config = {'loader_type': 'ts_loader', 'load_kwargs': {
+            'output_distance_matrix': True, 'use_complexes': False
+        }}
         job = SingleModel({
             'name': 'test',
             'run_config': run_config,

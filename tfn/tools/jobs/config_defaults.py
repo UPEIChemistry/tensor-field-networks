@@ -6,6 +6,7 @@ run_config = {  # Defines kwargs used when running a job
     'storage_dir': './sacred_storage',
     'model_path': './model.hdf5',
     'epochs': 100,
+    'batch_size': 16,
     'test': True,
     'use_strategy': False,
     'loss': 'mae',
@@ -35,7 +36,7 @@ builder_config = {  # Passed directly to builder classes
     'standardize': True,
     'trainable_offsets': True,
     'name': 'model',
-    'embedding_units': 32,
+    'embedding_units': 64,
     'num_layers': 3,
     'si_units': 64,
     'max_filter_order': 1,
@@ -135,4 +136,41 @@ default_architecture_search = {  # 1994 possible models
             'values': [16, 32, 64]
         }
     }
+}
+
+
+default_grid_search = {  # 96 models
+    'sum_atoms': [True, False],  # 2
+    'model_num_layers': [(3, 3, 3), (3, 3, 3, 3), (3, 3, 3, 3, 3)],  # 3
+    'embedding_units': [32, 64],  # 2
+    'radial_factory': ['multi_dense', 'single_dense'],  # 2
+    'radial_kwargs': [  # 4
+        {
+            'num_layers': 1,
+            'units': 64,
+            'activation': 'ssp',
+            'kernel_lambda': 0.01,
+            'bias_lambda': 0.01
+        },
+        {
+            'num_layers': 1,
+            'units': 128,
+            'activation': 'ssp',
+            'kernel_lambda': 0.01,
+            'bias_lambda': 0.01
+        },
+        {
+            'num_layers': 2,
+            'units': 64,
+            'activation': 'ssp',
+            'kernel_lambda': 0.01,
+            'bias_lambda': 0.01
+        },
+        {
+            'num_layers': 2,
+            'units': 64,
+            'activation': 'ssp',
+            'kernel_lambda': 0.01,
+            'bias_lambda': 0.01
+        }]
 }
