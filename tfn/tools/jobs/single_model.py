@@ -29,7 +29,7 @@ class SingleModel(DefaultJob):
         compile_kwargs = dict(
             loss=run_config['loss'],
             loss_weights=run_config['loss_weights'],
-            optimizer=run_config['optimizer'],
+            optimizer=tf.keras.optimizers.Adam(**run_config['optimizer_kwargs']),
             metrics=run_config['metrics'],
             run_eagerly=run_config['run_eagerly']
         )

@@ -9,7 +9,7 @@ run_config = {  # Defines kwargs used when running a job
     'test': True,
     'use_strategy': False,
     'loss': 'mae',
-    'optimizer': 'adam',
+    'optimizer_kwargs': {'learning_rate': 0.001},
     'loss_weights': None,
     'class_weight': None,
     'metrics': None,
@@ -39,15 +39,14 @@ builder_config = {  # Passed directly to builder classes
     'num_layers': 3,
     'si_units': 64,
     'max_filter_order': 1,
-    'output_orders': [0, 1],
     'residual': True,
     'activation': 'ssp',
     'dynamic': False,
     'sum_atoms': False,
     'basis_type': 'gaussian',
-    'basis_config': {
+    'basis_config': {  # 321 functions
         'width': 0.2,
-        'spacing': 0.2,
+        'spacing': 0.05,
         'min_value': -1.0,
         'max_value': 15.0
     },
@@ -95,11 +94,11 @@ tb_config = {  # Passed directly to tensorboard callback
 }
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     'monitor': 'val_loss',
-    'factor': 0.1,
-    'patience': 8,
+    'factor': 0.5,
+    'patience': 2,
     'verbose': 1,
-    'min_delta': 0.001,
-    'cooldown': 5,
+    'min_delta': 0.01,
+    'cooldown': 3,
     'min_lr': 0.00001
 }
 
