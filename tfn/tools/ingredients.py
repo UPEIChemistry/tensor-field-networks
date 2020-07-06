@@ -118,6 +118,8 @@ def get_hyper_factory(
         builder_cls = ForceBuilder
     elif factory_type == 'ts_factory':
         builder_cls = TSBuilder
+    elif factory_type == 'siamese_factory':
+        builder_cls = TSSiameseClassifierBuilder
     else:
         raise ValueError('arg `factory_type` had value: {} which is not supported. Check '
                          'ingredient docs for supported strings identifiers'.format(factory_type))

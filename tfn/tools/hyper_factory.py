@@ -45,6 +45,7 @@ class HyperFactory(HyperModel):
             si_units=self.make_hyperparameter('si_units', fconf['si_units']),
             activation=self.make_hyperparameter('activation', fconf['activation']),
             dynamic=self.kwargs.get('dynamic', fconf['dynamic']),
+            sum_atoms=self.kwargs.get('sum_atoms', fconf['sum_atoms']),
             basis_type=self.make_hyperparameter('basis_type', fconf['basis_type']),
             basis_config=self.kwargs.get('basis_config', {
                 'width': self.hp.Fixed('basis_width', fconf['basis_config']['width']),
