@@ -1,5 +1,6 @@
 from copy import copy
 import socket
+from pathlib import Path
 from typing import List, Union, Tuple
 
 from sacred import Experiment
@@ -193,6 +194,7 @@ class DefaultJob(Job):
         kwargs = dict(
             x=x_train, y=y_train,
             epochs=self.exp_config['run_config']['epochs'],
+            batch_size=self.exp_config['run_configs']['batch_size'],
             validation_data=val,
             class_weight=self.exp_config['run_config']['class_weight'],
             callbacks=[
@@ -216,3 +218,10 @@ class DefaultJob(Job):
 
     def save_results(self, run: Run, fitable: Union[Model, Tuner]):
         raise NotImplementedError
+
+    def new_model_path(self, i):
+        model_path = Path(
+            self.exp_config['run_config']['model_path']
+        ).parent / 'source_model_{}.h5'.format(i)
+        self.exp_config['run_config']['model_path'] = model_path
+        return model_path

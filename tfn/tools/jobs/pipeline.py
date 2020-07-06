@@ -1,5 +1,4 @@
 from copy import copy
-from pathlib import Path
 from typing import Union
 
 from h5py import File
@@ -49,13 +48,6 @@ class Pipeline(SingleModel):
                     loader_config=loader_config,
                     fitable_config=fitable_config
                 )
-
-    def new_model_path(self, i):
-        model_path = Path(
-            self.exp_config['run_config']['model_path']
-        ).parent / 'source_model_{}.h5'.format(i)
-        self.exp_config['run_config']['model_path'] = model_path
-        return model_path
 
     def layer_is_valid(self, layer):
         if layer is None:

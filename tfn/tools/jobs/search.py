@@ -4,11 +4,11 @@ from typing import Union, List
 
 from kerastuner import HyperParameters, Hyperband, RandomSearch, Tuner
 from sacred.run import Run
+from sklearn.model_selection import ParameterGrid
 import tensorflow as tf
-
 from tensorflow.keras.models import Model
 
-from .job import DefaultJob
+from . import DefaultJob, SingleModel, Pipeline
 from .config_defaults import factory_config, tuner_config
 from ..ingredients import get_hyper_factory, hyper_factory_ingredient
 
@@ -96,3 +96,23 @@ class Search(DefaultJob):
                 self.exp_config['run_config']['model_path']
             ).parent / 'model_{}.h5'.format(i)
             model.save(path)
+
+
+class GridSearch(SingleModel):
+    def __init__(self, *args, **kwargs):
+        self.total_models = kwargs.pop('total_models', None)
+        super().__init__(*args, **kwargs)
+
+    def main(self,
+             run,
+             fitable=None,
+             loader_config=None,
+             fitable_config=None):
+        config_grid = ParameterGrid(self.exp_config['grid_config'])
+        for i, config in enumerate(config_grid):
+            if (i + 1) == self.total_models:  # Stop when hitting max models
+                break
+            print('\nConfig set (not showing defaults): {}'.format(config))
+            [config.setdefault(k, v) for k, v in self.exp_config['builder_config'].items()]
+            self.new_model_path(i)  # This somehow works
+            super().main(run, fitable_config=config)
