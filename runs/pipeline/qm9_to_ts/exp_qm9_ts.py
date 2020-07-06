@@ -8,7 +8,7 @@ job = Pipeline({
     },
     'pipeline_config': {
         'configs': [
-            {  # Energy config
+            {  # QM9 config
                 'builder_config': {
                     'builder_type': 'energy_builder'
                 },
@@ -16,13 +16,16 @@ job = Pipeline({
                     'loader_type': 'qm9_loader'
                 }
             },
-            {  # Force config
+            {  # TS config
                 'builder_config': {
                     'builder_type': 'ts_builder'
                 },
                 'loader_config': {
                     'loader_type': 'ts_loader',
-                    'splitting': '90:10'
+                    'splitting': '90:10',
+                    'load_kwargs': {
+                        'output_distance_matrix': True, 'use_complexes': False
+                    }
                 }
             }
         ]
