@@ -14,32 +14,30 @@ class TSLoader(DataLoader):
 
     @property
     def mu(self):
+        mu = np.array(
+            [
+                0.,  # Dummy atoms
+                -13.61312172,  # Hydrogens
+                -1029.86312267,  # Carbons
+                -1485.30251237,  # Nitrogens
+                -2042.61123593,  # Oxygens
+                -2715.57846308,  # Fluorines
+                -17497.9266683,  # Silicon
+                -19674.5108670,  # Phosphorus
+                -10831.2647155,  # Sulfur
+                -12518.6632034,  # Chlorine
+                -61029.6106422,  # Selenium
+                -70031.0920387,  # Bromine
+            ]
+        ).reshape((-1, 1)) * self.KCAL_PER_EV
         if self.use_energies:
-            return np.array(
-                [
-                    0.,  # Dummy atoms
-                    -13.61312172,  # Hydrogens
-                    -1029.86312267,  # Carbons
-                    -1485.30251237,  # Nitrogens
-                    -2042.61123593,  # Oxygens
-                    -2715.57846308,  # Fluorines
-                    -17497.9266683,  # Silicon
-                    -19674.5108670,  # Phosphorus
-                    -10831.2647155,  # Sulfur
-                    -12518.6632034,  # Chlorine
-                    -61029.6106422,  # Selenium
-                    -70031.0920387,  # Bromine
-                ]
-            ).reshape((-1, 1))
+            return mu
         else:
-            return 0
+            return np.zeros_like(mu)
 
     @property
     def sigma(self):
-        if self.use_energies:
-            return np.ones_like(self.mu)
-        else:
-            return 1
+        return np.ones_like(self.mu)
 
     def load_data(self, *args, **kwargs):
         """
@@ -80,7 +78,7 @@ class TSLoader(DataLoader):
                 ('ts', 'reactant', 'reactant_complex', 'product_complex', 'product')
             }
             energies = {
-                structure_type: np.asarray(dataset['{}/energies'.format(structure_type)])
+                structure_type: np.asarray(dataset['{}/energies'.format(structure_type)]) * self.KCAL_PER_HARTREE
                 for structure_type in ('ts', 'reactant', 'product')
             }
 

@@ -172,7 +172,8 @@ class DefaultJob(Job):
         fitable = self.fit(fitable, data[:-1])
         if self.exp_config['run_config']['test']:
             self.test_fitable(fitable, data[-1])
-        self.save_results(run, fitable)
+        if self.exp_config['run_config']['save_model']:
+            self.save_results(run, fitable)
         return fitable
 
     def load_data(self, config: dict = None) -> Tuple[DataLoader, Tuple]:

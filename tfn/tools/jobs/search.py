@@ -114,5 +114,8 @@ class GridSearch(SingleModel):
                 break
             print('\nConfig set (not showing defaults): {}'.format(config))
             [config.setdefault(k, v) for k, v in self.exp_config['builder_config'].items()]
-            self.new_model_path(i)  # This somehow works
-            super().main(run, fitable_config=config)
+            self.new_model_path(i)
+            try:
+                super().main(run, fitable_config=config)
+            except:
+                pass

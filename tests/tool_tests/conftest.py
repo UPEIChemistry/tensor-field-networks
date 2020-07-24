@@ -45,8 +45,9 @@ def model():
 @pytest.fixture
 def run_config():
     return {
-        'epochs': 1,
+        'epochs': 2,
         'test': False,
+        'save_model': True,
         'use_strategy': False,
         'select_few': 50,
         'run_eagerly': True,

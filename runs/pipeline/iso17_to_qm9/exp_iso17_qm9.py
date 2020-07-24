@@ -5,7 +5,7 @@ job = Pipeline({
     'run_config': {
         'name': 'tl0 - QM9 Energy to ISO17 Energy/Force predictor',
         'notes': 'Not freezing layers, defaults for both models',
-        'epochs': 1
+        'epochs': 100
     },
     'pipeline_config': {
         'configs': [

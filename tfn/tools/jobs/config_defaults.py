@@ -8,6 +8,7 @@ run_config = {  # Defines kwargs used when running a job
     'epochs': 100,
     'batch_size': 16,
     'test': True,
+    'save_model': True,
     'use_strategy': False,
     'loss': 'mae',
     'optimizer_kwargs': {'learning_rate': 0.001},
@@ -96,11 +97,11 @@ tb_config = {  # Passed directly to tensorboard callback
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     'monitor': 'val_loss',
     'factor': 0.5,
-    'patience': 2,
+    'patience': 5,
     'verbose': 1,
-    'min_delta': 0.01,
-    'cooldown': 3,
-    'min_lr': 0.00001
+    'min_delta': 0.0001,
+    'cooldown': 10,
+    'min_lr': 0.000001
 }
 
 
@@ -141,26 +142,14 @@ default_architecture_search = {  # 1994 possible models
 
 default_grid_search = {  # 96 models
     'sum_atoms': [True, False],  # 2
-    'model_num_layers': [(3, 3, 3), (3, 3, 3, 3), (3, 3, 3, 3, 3)],  # 3
-    'embedding_units': [32, 64],  # 2
-    'radial_factory': ['multi_dense', 'single_dense'],  # 2
-    'radial_kwargs': [  # 4
+    'model_num_layers': [  # 6
+        [2 for _ in range(i + 1)]
+        for i in [0, 2, 4, 8, 16, 32]  # largest number of clusters (layers = 2 * clusters)
+    ],
+    'radial_factory': ['multi_dense', 'multi_conv', 'single_dense', 'single_conv'],  # 4
+    'radial_kwargs': [  # 2
         {
             'num_layers': 1,
-            'units': 64,
-            'activation': 'ssp',
-            'kernel_lambda': 0.01,
-            'bias_lambda': 0.01
-        },
-        {
-            'num_layers': 1,
-            'units': 128,
-            'activation': 'ssp',
-            'kernel_lambda': 0.01,
-            'bias_lambda': 0.01
-        },
-        {
-            'num_layers': 2,
             'units': 64,
             'activation': 'ssp',
             'kernel_lambda': 0.01,

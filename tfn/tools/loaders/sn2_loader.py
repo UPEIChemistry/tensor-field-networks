@@ -14,7 +14,7 @@ class SN2Loader(ISO17DataLoader):
             -12518.663203367176,  # Cl
             -70031.09203874589,  # Br
             -8096.587166328217,  # I
-        ]).reshape([-1, 1])
+        ]).reshape([-1, 1]) * self.KCAL_PER_EV
         if self._force_mu is None:
             self.load_data()
         return atomic_means, self._force_mu
@@ -27,8 +27,8 @@ class SN2Loader(ISO17DataLoader):
         data = np.load(self.path)
         cartesians = self.pad_along_axis(data['R'], self.num_atoms)  # (mols, atoms, 3)
         atomic_nums = self.pad_along_axis(data['Z'], self.num_atoms)  # (mols, atoms)
-        energies = data['E']  # (mols, )
-        forces = self.pad_along_axis(data['F'], self.num_atoms)
+        energies = data['E'] * self.KCAL_PER_EV  # (mols, )
+        forces = self.pad_along_axis(data['F'], self.num_atoms) * self.KCAL_PER_EV
         dipoles = data['D']  # (mols, 3)
 
         # Remap atoms

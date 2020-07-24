@@ -28,6 +28,25 @@ class TestScalarModels:
         })
         job.run()
 
+    def test_single_dense_radial(self, run_config, builder_config):
+        job = SingleModel({
+            'name': 'test',
+            'run_config': run_config,
+            'builder_config': dict(**builder_config, **{
+                'embedding_units': 32,
+                'model_num_layers': (3, 3, 3),
+                'si_units': 32,
+                'radial_factory': 'single_dense',
+                'radial_kwargs': {
+                    'num_layers': 1,
+                    'units': 64,
+                    'activation': 'ssp',
+                    'kernel_lambda': 0.01,
+                    'bias_lambda': 0.01},
+                'sum_atoms': True})
+        })
+        job.run()
+
     def test_multi_conv_radial(self, run_config, builder_config):
         job = SingleModel({
             'name': 'test',

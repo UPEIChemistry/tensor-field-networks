@@ -108,4 +108,4 @@ class TestSN2Loader:
         assert len(data[0][0]) == 2  # R, Z
         assert len(data[0][1]) == 2  # E, F
         assert len(loader.mu) == 2
-        assert isclose(loader.sigma[1], 0.71, abs_tol=0.01)
+        assert isclose(loader.sigma[1], 0.71 * loader.KCAL_PER_EV, abs_tol=0.3)
