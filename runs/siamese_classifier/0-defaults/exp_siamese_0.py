@@ -1,7 +1,5 @@
 from tfn.tools.jobs import SingleModel
-import os
 
-os.environ['DATADIR'] = '/home/riley/dev/python/data'
 
 job = SingleModel(exp_config={
     'name': 'SIAMESE CLASSIFIER ON TS DATASET EXPERIMENT 0',

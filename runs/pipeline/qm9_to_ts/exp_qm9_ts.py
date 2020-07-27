@@ -22,7 +22,7 @@ job = Pipeline({
                 },
                 'loader_config': {
                     'loader_type': 'ts_loader',
-                    'splitting': '90:10',
+                    'splitting': '75:20:5',
                     'load_kwargs': {
                         'output_distance_matrix': True, 'use_complexes': False
                     }
