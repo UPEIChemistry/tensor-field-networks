@@ -11,7 +11,9 @@ job = Pipeline({
         'configs': [
             {  # ISO17 config
                 'builder_config': {
-                    'builder_type': 'force_builder'
+                    'builder_type': 'force_builder',
+                    'num_layers': (2, 2, 2),
+                    'si_units': (32, 32, 16)
                 },
                 'loader_config': {
                     'loader_type': 'iso17_loader',
@@ -19,7 +21,9 @@ job = Pipeline({
             },
             {  # QM9 config
                 'builder_config': {
-                    'builder_type': 'energy_builder'
+                    'builder_type': 'energy_builder',
+                    'num_layers': (2, 2, 2),
+                    'si_units': (32, 32, 16)
                 },
                 'loader_config': {
                     'loader_type': 'qm9_loader',
