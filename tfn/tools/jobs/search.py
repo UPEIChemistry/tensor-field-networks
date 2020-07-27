@@ -117,5 +117,7 @@ class GridSearch(SingleModel):
             self.new_model_path(i)
             try:
                 super().main(run, fitable_config=config)
-            except:
+            except Exception as e:
+                print('Encountered exception in search, skipping configuration...\n Error '
+                      'message: {}'.format(e))
                 pass
