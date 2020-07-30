@@ -23,6 +23,13 @@ class TestQM9Loader:
         assert isclose(len(data[1][0][0]), ceil(0.20 * 133885), abs_tol=1)
         assert isclose(len(data[2][0][0]), ceil(0.10 * 133885), abs_tol=1)
 
+    def test_modified(self):
+        loader = QM9DataDataLoader(os.environ['DATADIR'] + '/QM9_data_original.hdf5',
+                                   splitting='70:20:10')
+        data = loader.load_data(modify_structures=True, modify_distance=1)
+        assert len(data[0][0]) == 3
+        assert data[0][1][0].shape[1:] == (loader.num_atoms, loader.num_atoms)
+
 
 class TestISO17Loader:
     def test_load_dual_data(self):

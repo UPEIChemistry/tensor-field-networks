@@ -123,6 +123,18 @@ class TestVectorModels:
         })
         job.run()
 
+    def test_modified_qm9_job(self, run_config, builder_config):
+        loader_config = {'loader_type': 'qm9_loader', 'load_kwargs': {
+            'modify_structures': True
+        }}
+        job = SingleModel({
+            'name': 'test',
+            'run_config': run_config,
+            'loader_config': loader_config,
+            'builder_config': dict(**builder_config, builder_type='ts_builder')
+        })
+        job.run()
+
 
 class TestClassifiers:
     def test_siamese_network(self, run_config, builder_config):

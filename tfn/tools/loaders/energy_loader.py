@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+from atomic_images.np_layers import DistanceMatrix
 
 from .data_loader import DataLoader
 
@@ -59,7 +60,26 @@ class QM9DataDataLoader(DataLoader):
         if kwargs.get('return_maxz', False):
             return
 
-        self._data = self.split_dataset([[cartesians, atomic_nums], [energies]], len(atomic_nums))
+        if kwargs.get('modify_structures', False):
+            forward_cartesians, reverse_cartesians = self.modify_structures(
+                cartesians,
+                kwargs.get('modify_distance', 0.5),
+                kwargs.get('modify_seed', 0))
+            x = [atomic_nums, forward_cartesians, reverse_cartesians]
+            y = [DistanceMatrix()(cartesians)]
+        else:
+            x = [cartesians, atomic_nums]
+            y = [energies]
+        self._data = self.split_dataset([x, y], len(atomic_nums))
         return self._data
 
-
+    def modify_structures(self, c, distance=0.5, seed=0):
+        np.random.seed(seed)
+        indices = np.random.randint(3, size=(len(c)))
+        forward, reverse = np.copy(c), np.copy(c)
+        forward += (0.1 * distance)
+        reverse -= (0.1 * distance)
+        for i, j in enumerate(indices):
+            forward[i, j] += (0.9 * distance)
+            reverse[i, j] -= (0.9 * distance)
+        return forward, reverse
