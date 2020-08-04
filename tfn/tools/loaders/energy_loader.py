@@ -23,7 +23,7 @@ class QM9DataDataLoader(DataLoader):
                 -2042.61123593,  # Oxygens
                 -2713.48485589  # Fluorines
             ]
-        ).reshape((-1, 1))  * self.KCAL_PER_EV
+        ).reshape((-1, 1))
 
     @property
     def sigma(self):
@@ -52,7 +52,7 @@ class QM9DataDataLoader(DataLoader):
         with h5py.File(self.path, 'r') as dataset:
             cartesians = self.pad_along_axis(np.nan_to_num(dataset['QM9/R']), self.num_atoms)
             atomic_nums = self.pad_along_axis(np.array(dataset['QM9/Z']), self.num_atoms)
-            energies = np.array(dataset['QM9/U_naught']) * self.KCAL_PER_HARTREE
+            energies = np.array(dataset['QM9/U_naught']) * self.EV_PER_HARTREE
 
         if self.map_atoms:
             self.remap_atoms(atomic_nums)

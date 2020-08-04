@@ -6,7 +6,7 @@ run_config = {  # Defines kwargs used when running a job
     'storage_dir': './sacred_storage',
     'model_path': './model.hdf5',
     'epochs': 100,
-    'batch_size': 16,
+    'batch_size': 32,
     'test': True,
     'save_model': True,
     'use_strategy': False,

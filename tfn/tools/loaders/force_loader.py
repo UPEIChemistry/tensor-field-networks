@@ -25,7 +25,7 @@ class ISO17DataLoader(DataLoader):
                 -1029.86312267,  # Carbons
                 -2042.61123593,  # Oxygens
             ]
-        ).reshape((-1, 1)) * self.KCAL_PER_EV
+        ).reshape((-1, 1))
         if self._force_mu is None:
             self.load_data()
         return atomic_means, self._force_mu
@@ -84,7 +84,7 @@ class ISO17DataLoader(DataLoader):
                         (len(positions), 1)
                     ), self.num_atoms)
 
-                energies = np.array(file['{}/energies'.format(name)]) * self.KCAL_PER_EV
+                energies = np.array(file['{}/energies'.format(name)])
                 forces = self.pad_along_axis(
                     np.array(file['{}/forces'.format(name)]), self.num_atoms
                 ) * self.KCAL_PER_EV

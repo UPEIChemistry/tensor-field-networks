@@ -29,7 +29,7 @@ class TSLoader(DataLoader):
                 -61029.6106422,  # Selenium
                 -70031.0920387,  # Bromine
             ]
-        ).reshape((-1, 1)) * self.KCAL_PER_EV
+        ).reshape((-1, 1))
         if self.use_energies:
             return mu
         else:
@@ -78,7 +78,7 @@ class TSLoader(DataLoader):
                 ('ts', 'reactant', 'reactant_complex', 'product_complex', 'product')
             }
             energies = {
-                structure_type: np.asarray(dataset['{}/energies'.format(structure_type)]) * self.KCAL_PER_HARTREE
+                structure_type: np.asarray(dataset['{}/energies'.format(structure_type)]) * self.EV_PER_HARTREE
                 for structure_type in ('ts', 'reactant', 'product')
             }
 
