@@ -7,7 +7,11 @@ job = GridSearch(
         'name': 'TS architecture grid search',
         'notes': 'Testing all 96 models of default grid search',
         'run_config': {'epochs': 20, 'save_model': False},
-        'loader_config': {'loader_type': 'ts_loader'},
+        'loader_config': {'loader_type': 'ts_loader',
+                          'load_kwargs': {
+                              'output_distance_matrix': True,
+                              'use_complexes': False}
+                          },
         'builder_config': {'builder_type': 'ts_builder'},
         'grid_config': default_grid_search
     }
