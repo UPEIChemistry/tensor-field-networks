@@ -89,7 +89,7 @@ class TestScalarModels:
 
 
 class TestDualModels:
-    def test_defaults(self, run_config, builder_config):
+    def test_iso17(self, run_config, builder_config):
         loader_config = {'loader_type': 'iso17_loader'}
         job = SingleModel({
             'name': 'test',
@@ -111,9 +111,9 @@ class TestDualModels:
 
 
 class TestVectorModels:
-    def test_ts_job(self, run_config, builder_config):
+    def test_ts(self, run_config, builder_config):
         loader_config = {'loader_type': 'ts_loader', 'load_kwargs': {
-            'output_distance_matrix': True, 'use_complexes': False
+            'output_distance_matrix': True
         }}
         job = SingleModel({
             'name': 'test',
@@ -123,7 +123,7 @@ class TestVectorModels:
         })
         job.run()
 
-    def test_modified_qm9_job(self, run_config, builder_config):
+    def test_modified_qm9(self, run_config, builder_config):
         loader_config = {'loader_type': 'qm9_loader', 'load_kwargs': {
             'modify_structures': True
         }}
@@ -144,5 +144,15 @@ class TestClassifiers:
             'run_config': run_config,
             'loader_config': loader_config,
             'builder_config': dict(**builder_config, builder_type='siamese_builder')
+        })
+        job.run()
+
+    def test_basic_classifier(self, run_config, builder_config):
+        loader_config = {'loader_type': 'ts_loader', 'load_kwargs': {'output_type': 'classifier'}}
+        job = SingleModel({
+            'name': 'test',
+            'run_config': run_config,
+            'loader_config': loader_config,
+            'builder_config': dict(**builder_config, builder_type='classifier_builder')
         })
         job.run()
