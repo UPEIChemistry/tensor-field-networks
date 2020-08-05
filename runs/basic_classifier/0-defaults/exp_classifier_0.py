@@ -12,9 +12,9 @@ job = SingleModel(
         },
         "loader_config": {
             "loader_type": "ts_loader",
-            "load_kwargs": {"output_type": "siamese"},
+            "load_kwargs": {"output_type": "classifier"},
         },
-        "builder_config": {"builder_type": "siamese_builder"},
+        "builder_config": {"builder_type": "classifier_builder"},
     }
 )
 job.run()
