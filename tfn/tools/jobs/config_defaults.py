@@ -38,7 +38,7 @@ builder_config = {  # Passed directly to builder classes
     'trainable_offsets': True,
     'name': 'model',
     'embedding_units': 64,
-    'num_layers': 3,
+    'num_layers': (2, 2, 2),
     'si_units': 64,
     'max_filter_order': 1,
     'residual': True,
