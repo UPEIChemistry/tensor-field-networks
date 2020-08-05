@@ -8,15 +8,15 @@ from . import DataLoader
 
 class TSLoader(DataLoader):
     def __init__(self, *args, **kwargs):
-        self.use_energies = kwargs.pop('use_energies', False)
-        kwargs.setdefault('num_atoms', 29)
+        self.use_energies = kwargs.pop("use_energies", False)
+        kwargs.setdefault("num_atoms", 29)
         super().__init__(*args, **kwargs)
 
     @property
     def mu(self):
         mu = np.array(
             [
-                0.,  # Dummy atoms
+                0.0,  # Dummy atoms
                 -13.61312172,  # Hydrogens
                 -1029.86312267,  # Carbons
                 -1485.30251237,  # Nitrogens
@@ -62,46 +62,59 @@ class TSLoader(DataLoader):
             'energies', 'both', 'classifier', 'siamese']
         :return: data in the format: [(x_train, y_train), (x_val, y_val), (x_test, y_test)]
         """
-        if self._data is not None and kwargs.get('cache', True):
+        if self._data is not None and kwargs.get("cache", True):
             return self._data
 
         # Load Data
-        with File(self.path, 'r') as dataset:
+        with File(self.path, "r") as dataset:
             atomic_nums = self.pad_along_axis(
-                np.asarray(dataset['ts/atomic_numbers'], dtype='int'),
-                self.num_atoms)
+                np.asarray(dataset["ts/atomic_numbers"], dtype="int"), self.num_atoms
+            )
             cartesians = {
                 structure_type: self.pad_along_axis(
-                    np.nan_to_num(dataset['{}/cartesians'.format(structure_type)]),
-                    self.num_atoms
-                ) for structure_type in
-                ('ts', 'reactant', 'reactant_complex', 'product_complex', 'product')
+                    np.nan_to_num(dataset["{}/cartesians".format(structure_type)]),
+                    self.num_atoms,
+                )
+                for structure_type in (
+                    "ts",
+                    "reactant",
+                    "reactant_complex",
+                    "product_complex",
+                    "product",
+                )
             }
             energies = {
-                structure_type: np.asarray(dataset['{}/energies'.format(structure_type)]) * self.EV_PER_HARTREE
-                for structure_type in ('ts', 'reactant', 'product')
+                structure_type: np.asarray(
+                    dataset["{}/energies".format(structure_type)]
+                )
+                * self.EV_PER_HARTREE
+                for structure_type in ("ts", "reactant", "product")
             }
 
         # Remap
         if self.map_atoms:
             self.remap_atoms(atomic_nums)
         self._max_z = np.max(atomic_nums) + 1
-        if kwargs.get('return_maxz', False):
+        if kwargs.get("return_maxz", False):
             return
 
         # Determine I/O data
-        input_type = kwargs.get('input_type', 'cartesians').lower()
-        output_type = kwargs.get('output_type', 'cartesians').lower()
+        input_type = kwargs.get("input_type", "cartesians").lower()
+        output_type = kwargs.get("output_type", "cartesians").lower()
 
-        if input_type == 'classifier' or output_type == 'classifier':
-            tiled_atomic_nums, tiled_cartesians, labels = self.tile_arrays(atomic_nums, cartesians)
-            x, y = self.shuffle_arrays([tiled_atomic_nums, tiled_cartesians], [labels], len(labels))
+        if input_type == "classifier" or output_type == "classifier":
+            tiled_atomic_nums, tiled_cartesians, labels = self.tile_arrays(
+                atomic_nums, cartesians
+            )
+            x, y = self.shuffle_arrays(
+                [tiled_atomic_nums, tiled_cartesians], [labels], len(labels)
+            )
             length = len(labels)
 
-        elif input_type == 'siamese' or output_type == 'siamese':
-            x, y = self.make_siamese_dataset(*self.tile_arrays(
-                atomic_nums, cartesians, blacklist=None
-            ))
+        elif input_type == "siamese" or output_type == "siamese":
+            x, y = self.make_siamese_dataset(
+                *self.tile_arrays(atomic_nums, cartesians, blacklist=None)
+            )
             x, y = self.shuffle_arrays(x, y, len(y[0]))
             length = len(y[0])
 
@@ -109,28 +122,31 @@ class TSLoader(DataLoader):
             length = len(atomic_nums)
             x = [
                 atomic_nums,
-                cartesians['reactant_complex'] if kwargs.get('use_complexes', False)
-                else cartesians['reactant'],
-                cartesians['product_complex'] if kwargs.get('use_complexes', False)
-                else cartesians['product']
+                cartesians["reactant_complex"]
+                if kwargs.get("use_complexes", False)
+                else cartesians["reactant"],
+                cartesians["product_complex"]
+                if kwargs.get("use_complexes", False)
+                else cartesians["product"],
             ]
             y = [
-                DistanceMatrix()(cartesians['ts'])
-                if kwargs.get('output_distance_matrix', False) else cartesians['ts'],
-                energies['ts']
+                DistanceMatrix()(cartesians["ts"])
+                if kwargs.get("output_distance_matrix", False)
+                else cartesians["ts"],
+                energies["ts"],
             ]
-            if output_type == 'energies':
+            if output_type == "energies":
                 y.pop(0)
-            elif output_type == 'both':
+            elif output_type == "both":
                 pass
             else:
                 y.pop(1)
 
+            # shuffle dataset
+            x, y = self.shuffle_arrays(x, y, length)
+
         # Split and serve data
-        self._data = self.split_dataset(
-            data=[x, y],
-            length=length
-        )
+        self._data = self.split_dataset(data=[x, y], length=length)
         return self._data
 
     def make_siamese_dataset(self, tiled_atomic_nums, tiled_cartesians, labels):
@@ -138,11 +154,15 @@ class TSLoader(DataLoader):
         c = np.zeros((len(labels), len(labels), 2, self.num_atoms, 3))
         a = np.zeros(c.shape[:-1])
         diff = np.where(
-            (np.expand_dims(labels, -1) - np.expand_dims(labels, -2)) != 0, 1, 0)
+            (np.expand_dims(labels, -1) - np.expand_dims(labels, -2)) != 0, 1, 0
+        )
         indices = np.triu_indices(diff.shape[0], 1)
-        for i, (i_atomic_nums, i_cartesians) in enumerate(zip(tiled_atomic_nums, tiled_cartesians)):
-            for j, (j_atomic_nums, j_cartesians) \
-                    in enumerate(zip(tiled_atomic_nums, tiled_cartesians)):
+        for i, (i_atomic_nums, i_cartesians) in enumerate(
+            zip(tiled_atomic_nums, tiled_cartesians)
+        ):
+            for j, (j_atomic_nums, j_cartesians) in enumerate(
+                zip(tiled_atomic_nums, tiled_cartesians)
+            ):
                 a[i, j, 1], c[i, j, 1] = i_atomic_nums, i_cartesians
                 a[i, j, 0], c[i, j, 0] = j_atomic_nums, j_cartesians
 
@@ -156,8 +176,8 @@ class TSLoader(DataLoader):
         blacklist = blacklist or []
         tiled_atomic_nums = np.tile(atomic_nums, (5 - len(blacklist), 1))
         tiled_cartesians = np.concatenate(
-            [a for key, a in cartesians.items() if key not in blacklist],
-            axis=0)
-        labels = np.zeros((len(tiled_atomic_nums),), dtype='int32')
-        labels[:len(atomic_nums)] = 1
+            [a for key, a in cartesians.items() if key not in blacklist], axis=0
+        )
+        labels = np.zeros((len(tiled_atomic_nums),), dtype="int32")
+        labels[: len(atomic_nums)] = 1
         return tiled_atomic_nums, tiled_cartesians, labels

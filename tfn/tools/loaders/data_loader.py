@@ -9,14 +9,15 @@ class DataLoader(object):
     KCAL_PER_HARTREE = 627.509
     KCAL_PER_EV = 23.06035
 
-    def __init__(self,
-                 path: str,
-                 map_atoms: bool = True,
-                 splitting: Union[str, None] = '70:20:10',
-                 pre_load: bool = False,
-                 num_atoms: int = None,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        path: str,
+        map_atoms: bool = True,
+        splitting: Union[str, None] = "70:20:10",
+        pre_load: bool = False,
+        num_atoms: int = None,
+        **kwargs
+    ):
         self.path = path
         self.map_atoms = map_atoms
         self.splitting = splitting
@@ -55,13 +56,17 @@ class DataLoader(object):
         raise NotImplementedError
 
     def few_examples(self, num_examples: int = 5, **kwargs):
-        train, *_ = self.load_data(**kwargs)  # train is [x, y] where x, y are lists with 1 or more
-        # item(s)
-        sample = [[], []]
-        for l, data in zip(sample, train):
-            for d in data:
-                l.append(d[:num_examples])
-        return sample
+        data = self.load_data(**kwargs)
+        truncated_data = []
+        for split in data:  # [x, y]
+            truncated_split = []
+            for l in split:
+                truncated_array = []
+                for array in l:
+                    truncated_array.append(array[:num_examples])
+                truncated_split.append(truncated_array)
+            truncated_data.append(truncated_split)
+        return truncated_data
 
     def split_dataset(self, data: list, length: int):
         """
@@ -83,7 +88,7 @@ class DataLoader(object):
         else:
             splits = [
                 int(int(x) / 100 * length)
-                for x in re.findall(r'(\d{1,2})', self.splitting)
+                for x in re.findall(r"(\d{1,2})", self.splitting)
             ]
         output_data = []
         for i in range(len(splits)):
@@ -92,23 +97,23 @@ class DataLoader(object):
                 output_data.append(
                     (
                         [x[:first_split] for x in x_data],
-                        [y[:first_split] for y in y_data]
+                        [y[:first_split] for y in y_data],
                     )
                 )
             elif i == 1:
                 first_split, second_split = splits[:2]
                 output_data.append(
                     (
-                        [x[first_split:first_split + second_split] for x in x_data],
-                        [y[first_split:first_split + second_split] for y in y_data],
+                        [x[first_split : first_split + second_split] for x in x_data],
+                        [y[first_split : first_split + second_split] for y in y_data],
                     )
                 )
             elif i == 2:
                 first_split, second_split = splits[:2]
                 output_data.append(
                     (
-                        [x[first_split + second_split:] for x in x_data],
-                        [y[first_split + second_split:] for y in y_data]
+                        [x[first_split + second_split :] for x in x_data],
+                        [y[first_split + second_split :] for y in y_data],
                     )
                 )
 
@@ -128,7 +133,7 @@ class DataLoader(object):
             return array
         npad = [(0, 0) for _ in range(axis_nb)]
         npad[axis] = (0, pad_size)
-        b = np.pad(array, pad_width=npad, mode='constant', constant_values=0)
+        b = np.pad(array, pad_width=npad, mode="constant", constant_values=0)
         return b
 
     def shuffle_arrays(self, x, y, length):

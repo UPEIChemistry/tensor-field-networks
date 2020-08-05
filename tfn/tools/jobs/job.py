@@ -10,23 +10,26 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau, TensorBoard
 from tensorflow.keras.models import Model
 from kerastuner.engine.tuner import Tuner
 
-from .config_defaults import (run_config, loader_config, tb_config, lr_config)
+from ..callbacks import ClassificationMetrics
+from .config_defaults import run_config, loader_config, tb_config, lr_config
 from ..ingredients import data_ingredient, get_data_loader
 from ..loaders import DataLoader
 
 
 class Job(object):
-    def __init__(self,
-                 exp_config: dict = None,
-                 add_defaults: bool = True,
-                 mongo_hostnames: list = None):
+    def __init__(
+        self,
+        exp_config: dict = None,
+        add_defaults: bool = True,
+        mongo_hostnames: list = None,
+    ):
         exp_config = exp_config or dict()
         if add_defaults:
             self.exp_config = self.add_config_defaults(exp_config)
         else:
             self.exp_config = exp_config
         if mongo_hostnames is None:
-            mongo_hostnames = ['tater']
+            mongo_hostnames = ["tater"]
         self.mongo_hostnames = mongo_hostnames
 
         self._experiment = None
@@ -49,13 +52,15 @@ class Job(object):
     def default_observers(self):
         observers = []
         if socket.gethostname() in self.mongo_hostnames:
-            observers.append(MongoObserver(
-                url=f'mongodb://sample:password@localhost:27017/?authMechanism=SCRAM-SHA-1',
-                db_name='db'
-            ))
-        observers.append(FileStorageObserver(
-            self.exp_config.get('storage_dir', './sacred_storage')
-        ))
+            observers.append(
+                MongoObserver(
+                    url=f"mongodb://sample:password@localhost:27017/?authMechanism=SCRAM-SHA-1",
+                    db_name="db",
+                )
+            )
+        observers.append(
+            FileStorageObserver(self.exp_config.get("storage_dir", "./sacred_storage"))
+        )
         return observers
 
     def update_observers(self, o: List[RunObserver]):
@@ -79,15 +84,15 @@ class Job(object):
     def experiment(self):
         if self._experiment is None:
             self._experiment = Experiment(
-                name=self.exp_config.get('name'),
-                ingredients=self.exp_config.get('ingredients')
+                name=self.exp_config.get("name"),
+                ingredients=self.exp_config.get("ingredients"),
             )
             observers = self._observers or self.default_observers
             self._experiment.observers.extend(observers)
             self._experiment.add_config(self.exp_config)
-            if not self.exp_config['run_config']['capture_output']:
+            if not self.exp_config["run_config"]["capture_output"]:
                 self._experiment.captured_out_filter = (
-                    lambda *args, **kwargs: 'Output capturing turned off.'
+                    lambda *args, **kwargs: "Output capturing turned off."
                 )
         return self._experiment
 
@@ -104,13 +109,16 @@ class Job(object):
         @self.experiment.main
         def main(_run):
             self.main(_run)
+
         self.experiment.run()
 
-    def main(self,
-             run,
-             fitable: Union[Model, Tuner] = None,
-             loader_config: dict = None,
-             fitable_config: dict = None):
+    def main(
+        self,
+        run,
+        fitable: Union[Model, Tuner] = None,
+        loader_config: dict = None,
+        fitable_config: dict = None,
+    ):
         raise NotImplementedError
 
     def load_data(self, config: dict = None) -> Tuple[DataLoader, Tuple]:
@@ -121,7 +129,9 @@ class Job(object):
         """
         raise NotImplementedError
 
-    def load_fitable(self, loader: DataLoader, fitable_config: dict = None) -> Union[Model, Tuner]:
+    def load_fitable(
+        self, loader: DataLoader, fitable_config: dict = None
+    ) -> Union[Model, Tuner]:
         """
         Defines and compiles a fitable (keras.model or keras_tuner.tuner) which implements
         a 'fit' method. This method calls either get_builder, or get_hyper_factory, depending on
@@ -155,63 +165,73 @@ class DefaultJob(Job):
     @property
     def config_defaults(self):
         return {
-            'ingredients': [data_ingredient],
-            'run_config': copy(run_config),
-            'loader_config': copy(loader_config),
-            'tb_config': copy(tb_config),
-            'lr_config': copy(lr_config)
+            "ingredients": [data_ingredient],
+            "run_config": copy(run_config),
+            "loader_config": copy(loader_config),
+            "tb_config": copy(tb_config),
+            "lr_config": copy(lr_config),
         }
 
-    def main(self,
-             run,
-             fitable=None,
-             loader_config=None,
-             fitable_config=None):
+    def main(self, run, fitable=None, loader_config=None, fitable_config=None):
         loader, data = self.load_data(loader_config)
         fitable = fitable or self.load_fitable(loader, fitable_config)
         fitable = self.fit(fitable, data[:-1])
-        if self.exp_config['run_config']['test']:
+        if self.exp_config["run_config"]["test"]:
             self.test_fitable(fitable, data[-1])
-        if self.exp_config['run_config']['save_model']:
+        if self.exp_config["run_config"]["save_model"]:
             self.save_results(run, fitable)
         return fitable
 
     def load_data(self, config: dict = None) -> Tuple[DataLoader, Tuple]:
-        config = config or self.exp_config['loader_config']
+        config = config or self.exp_config["loader_config"]
         loader = get_data_loader(**config)
-        if self.exp_config['run_config']['select_few']:
-            x_train, y_train = loader.few_examples(**config['load_kwargs'])
-            val, x_test, y_test = None, None, None
+        if self.exp_config["run_config"]["select_few"]:
+            (x_train, y_train), val, (x_test, y_test) = loader.few_examples(
+                **config["load_kwargs"]
+            )
         else:
-            (x_train, y_train), val, (x_test, y_test) = loader.load_data(**config['load_kwargs'])
+            (x_train, y_train), val, (x_test, y_test) = loader.load_data(
+                **config["load_kwargs"]
+            )
         data = ((x_train, y_train), val, (x_test, y_test))
         return loader, data
 
-    def load_fitable(self, loader: DataLoader, fitable_config: dict = None) -> Union[Model, Tuner]:
+    def load_fitable(
+        self, loader: DataLoader, fitable_config: dict = None
+    ) -> Union[Model, Tuner]:
         raise NotImplementedError
 
     def fit(self, fitable: Union[Model, Tuner], data: tuple) -> Union[Model, Tuner]:
         (x_train, y_train), val = data
+        callbacks = [
+            TensorBoard(**self.exp_config["tb_config"]),
+            ReduceLROnPlateau(**self.exp_config["lr_config"]),
+        ]
+        if self.exp_config["builder_config"]["builder_type"] in [
+            "siamese_builder",
+            "classifier_builder",
+        ]:
+            callbacks.append(ClassificationMetrics(val))
         kwargs = dict(
-            x=x_train, y=y_train,
-            epochs=self.exp_config['run_config']['epochs'],
-            batch_size=self.exp_config['run_config']['batch_size'],
+            x=x_train,
+            y=y_train,
+            epochs=self.exp_config["run_config"]["epochs"],
+            batch_size=self.exp_config["run_config"]["batch_size"],
             validation_data=val,
-            class_weight=self.exp_config['run_config']['class_weight'],
-            callbacks=[
-                TensorBoard(**self.exp_config['tb_config']),
-                ReduceLROnPlateau(**self.exp_config['lr_config'])
-            ],
-            verbose=self.exp_config['run_config']['fit_verbosity']
+            class_weight=self.exp_config["run_config"]["class_weight"],
+            callbacks=callbacks,
+            verbose=self.exp_config["run_config"]["fit_verbosity"],
         )
         try:
             fitable.fit(**kwargs)
-        except AttributeError:
+        except AttributeError as e:
             try:
                 fitable.search(**kwargs)
             except AttributeError:
-                raise ValueError("Param 'fitable' does not have a fit or a search method. Ensure"
-                                 "fitable is either of type 'Model' or 'Tuner'")
+                raise ValueError(
+                    "Param 'fitable' does not have a fit or a search method. Ensure"
+                    "fitable is either of type 'Model' or 'Tuner'"
+                )
         return fitable
 
     def test_fitable(self, fitable: Union[Model, Tuner], test_data: tuple) -> float:
@@ -222,7 +242,7 @@ class DefaultJob(Job):
 
     def new_model_path(self, i):
         model_path = Path(
-            self.exp_config['run_config']['model_path']
-        ).parent / 'source_model_{}.h5'.format(i)
-        self.exp_config['run_config']['model_path'] = model_path
+            self.exp_config["run_config"]["model_path"]
+        ).parent / "source_model_{}.h5".format(i)
+        self.exp_config["run_config"]["model_path"] = model_path
         return model_path
