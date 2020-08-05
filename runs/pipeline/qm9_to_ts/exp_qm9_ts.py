@@ -1,3 +1,4 @@
+
 from tfn.tools.jobs import Pipeline
 
 
@@ -24,7 +25,7 @@ job = Pipeline({
                     'loader_type': 'ts_loader',
                     'splitting': '75:20:5',
                     'load_kwargs': {
-                        'output_distance_matrix': True, 'use_complexes': False
+                        'output_distance_matrix': True
                     }
                 }
             }

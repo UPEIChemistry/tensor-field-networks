@@ -7,7 +7,7 @@ job = SingleModel(exp_config={
     'run_config': {
         'class_weights': {0: 1, 1: 5},
         'loss': 'binary_crossentropy',
-        'metrics': ['accuracy']
+        'metrics': ['accuracy', 'precision', 'recall']
     },
     'loader_config': {
         'loader_type': 'ts_loader',

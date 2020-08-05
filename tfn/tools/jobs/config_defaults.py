@@ -46,9 +46,9 @@ builder_config = {  # Passed directly to builder classes
     'dynamic': False,
     'sum_atoms': False,
     'basis_type': 'gaussian',
-    'basis_config': {  # 321 functions
+    'basis_config': {  # 800 functions
         'width': 0.2,
-        'spacing': 0.05,
+        'spacing': 0.02,
         'min_value': -1.0,
         'max_value': 15.0
     },
@@ -97,7 +97,7 @@ tb_config = {  # Passed directly to tensorboard callback
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     'monitor': 'val_loss',
     'factor': 0.5,
-    'patience': 5,
+    'patience': 10,
     'verbose': 1,
     'min_delta': 0.0001,
     'cooldown': 10,
@@ -140,14 +140,15 @@ default_architecture_search = {  # 1994 possible models
 }
 
 
-default_grid_search = {  # 96 models
-    'sum_atoms': [True, False],  # 2
-    'model_num_layers': [  # 6
+default_grid_search = {  # 48 models
+    'model_num_layers': [  # 4
         [2 for _ in range(i + 1)]
-        for i in [0, 2, 4, 8, 16, 32]  # largest number of clusters (layers = 2 * clusters)
+        for i in [0, 2, 8, 16]  # largest number of clusters (layers = 2 * clusters)
     ],
-    'radial_factory': ['multi_dense', 'multi_conv', 'single_dense', 'single_conv'],  # 4
-    'radial_kwargs': [  # 2
+    'num_final_si_layers': [1, 2],  # 2
+    'max_filter_order': [0, 1],  # 2
+    'radial_factory': ['multi_dense', 'multi_conv'],  # 2
+    'radial_kwargs': [  # 3
         {
             'num_layers': 1,
             'units': 64,
@@ -157,6 +158,13 @@ default_grid_search = {  # 96 models
         },
         {
             'num_layers': 2,
+            'units': 64,
+            'activation': 'ssp',
+            'kernel_lambda': 0.01,
+            'bias_lambda': 0.01
+        },
+        {
+            'num_layers': 3,
             'units': 64,
             'activation': 'ssp',
             'kernel_lambda': 0.01,

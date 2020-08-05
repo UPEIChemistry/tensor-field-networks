@@ -9,9 +9,8 @@ job = GridSearch(
         'run_config': {'epochs': 20, 'save_model': False},
         'loader_config': {'loader_type': 'ts_loader',
                           'load_kwargs': {
-                              'output_distance_matrix': True,
-                              'use_complexes': False}
-                          },
+                              'output_distance_matrix': True
+                          }},
         'builder_config': {'builder_type': 'ts_builder'},
         'grid_config': default_grid_search
     }
