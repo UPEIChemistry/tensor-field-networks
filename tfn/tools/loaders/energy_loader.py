@@ -6,22 +6,20 @@ from .data_loader import DataLoader
 
 
 class QM9DataDataLoader(DataLoader):
-    def __init__(self,
-                 *args,
-                 **kwargs):
-        kwargs.setdefault('num_atoms', 29)
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("num_points", 29)
         super().__init__(*args, **kwargs)
 
     @property
     def mu(self):
         return np.array(
             [
-                0.,  # Dummy atoms
+                0.0,  # Dummy points
                 -13.61312172,  # Hydrogens
                 -1029.86312267,  # Carbons
                 -1485.30251237,  # Nitrogens
                 -2042.61123593,  # Oxygens
-                -2713.48485589  # Fluorines
+                -2713.48485589,  # Fluorines
             ]
         ).reshape((-1, 1))
 
@@ -31,7 +29,7 @@ class QM9DataDataLoader(DataLoader):
 
     def load_data(self, *args, **kwargs):
         """
-        The QM9 is a dataset of 133,885 small molecules with up to 9 heavy atoms (C, N, O, or F). The dataset has 13
+        The QM9 is a dataset of 133,885 small molecules with up to 9 heavy points (C, N, O, or F). The dataset has 13
         different chemical properties associated with each structure, the most valuable being energy, of which there
         are several forms. This `DataLoader` is responsible for returning U0 energies; the internal energy of the
         structures at 298 Kelvin.
@@ -49,37 +47,58 @@ class QM9DataDataLoader(DataLoader):
         """
         if self._data is not None:
             return self._data
-        with h5py.File(self.path, 'r') as dataset:
-            cartesians = self.pad_along_axis(np.nan_to_num(dataset['QM9/R']), self.num_atoms)
-            atomic_nums = self.pad_along_axis(np.array(dataset['QM9/Z']), self.num_atoms)
-            energies = np.array(dataset['QM9/U_naught']) * self.EV_PER_HARTREE
+        with h5py.File(self.path, "r") as dataset:
+            cartesians = self.pad_along_axis(
+                np.nan_to_num(dataset["QM9/R"]), self.num_points
+            )
+            atomic_nums = self.pad_along_axis(
+                np.array(dataset["QM9/Z"]), self.num_points
+            )
+            energies = np.array(dataset["QM9/U_naught"]) * self.EV_PER_HARTREE
 
-        if self.map_atoms:
-            self.remap_atoms(atomic_nums)
+        if self.map_points:
+            self.remap_points(atomic_nums)
         self._max_z = np.max(atomic_nums) + 1
-        if kwargs.get('return_maxz', False):
+        if kwargs.get("return_maxz", False):
             return
 
-        if kwargs.get('modify_structures', False):
+        if kwargs.get("modify_structures", False):
             forward_cartesians, reverse_cartesians = self.modify_structures(
                 cartesians,
-                kwargs.get('modify_distance', 0.5),
-                kwargs.get('modify_seed', 0))
-            x = [atomic_nums, forward_cartesians, reverse_cartesians]
-            y = [DistanceMatrix()(cartesians)]
+                kwargs.get("modify_distance", 0.5),
+                kwargs.get("modify_seed", 0),
+            )
+            if kwargs.get("classifier_output", False):
+                tiled_cartesians = np.concatenate(
+                    [cartesians, forward_cartesians, reverse_cartesians], axis=0
+                )
+                tiled_atomic_nums = np.tile(atomic_nums, (3, 1))
+                labels = np.zeros((len(tiled_cartesians),), dtype="int32")
+                labels[: len(cartesians)] = 1
+                x, y = self.shuffle_arrays(
+                    [tiled_atomic_nums, tiled_cartesians], [labels], len(labels)
+                )
+                length = len(labels)
+            else:
+                x = [atomic_nums, forward_cartesians, reverse_cartesians]
+                y = [DistanceMatrix()(cartesians)]
+                length = len(atomic_nums)
+
         else:
             x = [cartesians, atomic_nums]
             y = [energies]
-        self._data = self.split_dataset([x, y], len(atomic_nums))
+            length = len(atomic_nums)
+
+        self._data = self.split_dataset([x, y], length=length)
         return self._data
 
     def modify_structures(self, c, distance=0.5, seed=0):
         np.random.seed(seed)
         indices = np.random.randint(3, size=(len(c)))
         forward, reverse = np.copy(c), np.copy(c)
-        forward += (0.1 * distance)
-        reverse -= (0.1 * distance)
+        forward += 0.1 * distance
+        reverse -= 0.1 * distance
         for i, j in enumerate(indices):
-            forward[i, j] += (0.9 * distance)
-            reverse[i, j] -= (0.9 * distance)
+            forward[i, j] += 0.9 * distance
+            reverse[i, j] -= 0.9 * distance
         return forward, reverse

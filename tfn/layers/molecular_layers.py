@@ -8,7 +8,9 @@ from . import Convolution, SelfInteraction, EquivariantActivation
 class MolecularLayer(Layer):
     def build(self, input_shape):
         if len(input_shape) < self.total_required_inputs:
-            raise ValueError('Ensure one_hot tensor is passed before other relevant tensors')
+            raise ValueError(
+                "Ensure one_hot tensor is passed before other relevant tensors"
+            )
         _, *input_shape = input_shape
         super().build(input_shape)
 
@@ -22,9 +24,7 @@ class MolecularLayer(Layer):
         activated_output = super().call(inputs, **kwargs)
         if not isinstance(activated_output, list):
             activated_output = [activated_output]
-        return [
-            DummyAtomMasking()([one_hot, tensor]) for tensor in activated_output
-        ]
+        return [DummyAtomMasking()([one_hot, tensor]) for tensor in activated_output]
 
 
 class MolecularConvolution(MolecularLayer, Convolution):
@@ -37,6 +37,7 @@ class MolecularConvolution(MolecularLayer, Convolution):
     Output:
         [(batch, points, si_units, representation_index), ...]
     """
+
     def __init__(self, *args, **kwargs):
         self.total_required_inputs = 4
         super().__init__(*args, **kwargs)
@@ -50,6 +51,7 @@ class MolecularSelfInteraction(MolecularLayer, SelfInteraction):
     Output:
         [(batch, points, si_units, representation_index), ...]
     """
+
     def __init__(self, *args, **kwargs):
         self.total_required_inputs = 2
         super().__init__(*args, **kwargs)
@@ -63,6 +65,7 @@ class MolecularActivation(MolecularLayer, EquivariantActivation):
     Output:
         [(batch, points, si_units, representation_index), ...]
     """
+
     def __init__(self, *args, **kwargs):
         self.total_required_inputs = 2
         super().__init__(*args, **kwargs)

@@ -1,39 +1,43 @@
 import json
 
-from tensorflow.keras import activations, regularizers
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.models import Sequential
+import tensorflow as tf
+from tensorflow.keras import activations, regularizers, Sequential
+from tensorflow.keras.layers import Layer
 
 
 class RadialFactory(object):
     """
     Abstract class for RadialFactory objects, defines the interface. Subclass
     """
-    def __init__(self,
-                 num_layers: int = 2,
-                 units: int = 32,
-                 activation: str = 'ssp',
-                 kernel_lambda: float = 0.,
-                 bias_lambda: float = 0.,
-                 **kwargs):
+
+    def __init__(
+        self,
+        num_layers: int = 2,
+        units: int = 32,
+        activation: str = "ssp",
+        l2_lambda: float = 0.0,
+        **kwargs
+    ):
         self.num_layers = num_layers
         self.units = units
         if activation is None:
-            activation = 'ssp'
+            activation = "ssp"
         if isinstance(activation, str):
             self.activation = activation
         else:
-            raise ValueError('Expected `str` for param `activation`, but got `{}` instead. '
-                             'Ensure `activation` is a string mapping to a valid keras '
-                             'activation function')
-        self.kernel_lambda = kernel_lambda
-        self.bias_lambda = bias_lambda
+            raise ValueError(
+                "Expected `str` for param `activation`, but got `{}` instead. "
+                "Ensure `activation` is a string mapping to a valid keras "
+                "activation function"
+            )
+        self.l2_lambda = l2_lambda
+        self.sum_points = kwargs.pop("sum_points", False)
 
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         raise NotImplementedError
 
     def to_json(self):
-        self.__dict__['type'] = type(self).__name__
+        self.__dict__["type"] = type(self).__name__
         return json.dumps(self.__dict__)
 
     @classmethod
@@ -48,6 +52,7 @@ class DenseRadialFactory(RadialFactory):
     You must also override the `to_json` and `from_json` and register any custom `RadialFactory`
     classes to a unique string in the keras global custom objects dict.
     """
+
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         """
         Factory method for obtaining radial functions of a specified architecture, or an instance
@@ -63,23 +68,57 @@ class DenseRadialFactory(RadialFactory):
         :return: Keras Layer object, or subclass of Layer. Must have attr dynamic == True and
             trainable == True.
         """
-        return Sequential([
-              Dense(
-                  self.units,
-                  activation=activations.get(self.activation),
-                  kernel_regularizer=regularizers.l2(self.kernel_lambda),
-                  bias_regularizer=regularizers.l2(self.bias_lambda),
-              )
-              for _ in range(self.num_layers)
-          ] + [
-              Dense(
-                  feature_dim,
-                  activation=activations.get(self.activation),
-                  kernel_regularizer=regularizers.l2(self.kernel_lambda),
-                  bias_regularizer=regularizers.l2(self.bias_lambda),
-              )
-          ])
+        layers = [
+            Radial(
+                self.units, self.activation, self.l2_lambda, sum_points=self.sum_points
+            )
+            for _ in range(self.num_layers)
+        ]
+        layers.append(
+            Radial(
+                feature_dim, self.activation, self.l2_lambda, sum_points=self.sum_points
+            )
+        )
+        return Sequential(layers)
 
     @classmethod
     def from_json(cls, config: str):
         return cls(**json.loads(config))
+
+
+class Radial(Layer):
+    def __init__(
+        self, units: int = 32, activation: str = "ssp", l2_lambda: float = 0.0, **kwargs
+    ):
+        self.sum_points = kwargs.pop("sum_points", False)
+        super().__init__(**kwargs)
+        self.units = units
+        self.activation = activations.get(activation)
+        self.l2_lambda = l2_lambda
+        self.kernel = None
+        self.bias = None
+
+    def build(self, input_shape):
+        self.kernel = self.add_weight(
+            name="radial_kernel",
+            shape=(input_shape[-1], self.units),
+            regularizer=regularizers.l2(self.l2_lambda),
+        )
+        self.bias = self.add_weight(
+            name="radial_bias",
+            shape=(self.units,),
+            regularizer=regularizers.l2(self.l2_lambda),
+        )
+        self.built = True
+
+    def compute_output_shape(self, input_shape):
+        return tf.TensorShape(list(input_shape)[:-1] + [self.units])
+
+    def get_config(self):
+        base = super().get_config()
+        updates = dict(units=self.units, activation=self.activation,)
+        return {**base, **updates}
+
+    def call(self, inputs, training=None, mask=None):
+        equation = "bpf,fu->bpu" if self.sum_points else "bpqf,fu->bpqu"
+        return self.activation(tf.einsum(equation, inputs, self.kernel) + self.bias)

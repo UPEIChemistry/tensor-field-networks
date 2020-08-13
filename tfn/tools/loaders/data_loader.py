@@ -12,16 +12,16 @@ class DataLoader(object):
     def __init__(
         self,
         path: str,
-        map_atoms: bool = True,
+        map_points: bool = True,
         splitting: Union[str, None] = "70:20:10",
         pre_load: bool = False,
-        num_atoms: int = None,
+        num_points: int = None,
         **kwargs
     ):
         self.path = path
-        self.map_atoms = map_atoms
+        self.map_points = map_points
         self.splitting = splitting
-        self.num_atoms = num_atoms
+        self.num_points = num_points
 
         self._data = None
         self._max_z = None
@@ -120,7 +120,7 @@ class DataLoader(object):
         return output_data
 
     @staticmethod
-    def remap_atoms(atomic_nums):
+    def remap_points(atomic_nums):
         atom_mapping = np.unique(atomic_nums)
         for remapped_z, original_z in enumerate(atom_mapping):
             atomic_nums[atomic_nums == original_z] = remapped_z

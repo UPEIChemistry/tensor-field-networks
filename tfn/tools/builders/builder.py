@@ -1,32 +1,39 @@
 from typing import Union, Tuple
 
 import tensorflow as tf
-from tensorflow.python.keras import Model, backend as K
-from tensorflow.python.keras.layers import Add, Input, Lambda
-from tfn.layers import (DenseRadialFactory, MolecularConvolution, Preprocessing, RadialFactory,
-                        MolecularSelfInteraction)
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Add, Input, Lambda
+from tfn.layers import (
+    DenseRadialFactory,
+    MolecularConvolution,
+    Preprocessing,
+    RadialFactory,
+    MolecularSelfInteraction,
+)
 
 
 class Builder(object):
-    def __init__(self,
-                 max_z: int,
-                 num_atoms: int,
-                 name: str = 'model',
-                 mu: Union[int, list] = None,
-                 sigma: Union[int, list] = None,
-                 standardize: bool = True,
-                 trainable_offsets: bool = True,
-                 embedding_units: int = 32,
-                 radial_factory: Union[RadialFactory, str] = DenseRadialFactory(),
-                 num_layers: Union[int, Tuple[int]] = (3, ),
-                 si_units: Union[int, Tuple[int]] = (64, 32, 16),
-                 output_orders: list = None,
-                 residual: bool = True,
-                 activation: str = 'ssp',
-                 dynamic: bool = True,
-                 **kwargs):
+    def __init__(
+        self,
+        max_z: int,
+        num_points: int,
+        name: str = "model",
+        mu: Union[int, list] = None,
+        sigma: Union[int, list] = None,
+        standardize: bool = True,
+        trainable_offsets: bool = True,
+        embedding_units: int = 32,
+        radial_factory: Union[RadialFactory, str] = DenseRadialFactory(),
+        num_layers: Union[int, Tuple[int]] = (3,),
+        si_units: Union[int, Tuple[int]] = (64, 32, 16),
+        output_orders: list = None,
+        residual: bool = True,
+        activation: str = "ssp",
+        dynamic: bool = True,
+        **kwargs
+    ):
         self.max_z = max_z
-        self.num_atoms = num_atoms
+        self.num_points = num_points
         self.name = name
         self.mu = mu
         self.sigma = sigma
@@ -36,7 +43,7 @@ class Builder(object):
         self.radial_factory = radial_factory
 
         if not isinstance(num_layers, tuple):
-            num_layers = (num_layers, )
+            num_layers = (num_layers,)
         self.num_layers = num_layers
         if not isinstance(si_units, tuple):
             si_units = self.tuplize_si_units(si_units, self.num_layers)
@@ -46,21 +53,21 @@ class Builder(object):
         self.residual = residual
         self.activation = activation
         self.dynamic = dynamic
-        self.sum_atoms = kwargs.pop('sum_atoms', False)
+        self.sum_points = kwargs.pop("sum_points", False)
 
-        self.use_scalars = kwargs.pop('use_scalars', True)
+        self.use_scalars = kwargs.pop("use_scalars", True)
         if not self.use_scalars:
-            kwargs.setdefault('final_output_orders', [1])
-        self.normalize_max = kwargs.pop('normalize_max', None)
-        self.normalize_min = kwargs.pop('normalize_min', None)
-        self.num_final_si_layers = kwargs.pop('num_final_si_layers', 0)
-        self.final_si_units = kwargs.pop('final_si_units', 32)
+            kwargs.setdefault("final_output_orders", [1])
+        self.normalize_max = kwargs.pop("normalize_max", None)
+        self.normalize_min = kwargs.pop("normalize_min", None)
+        self.num_final_si_layers = kwargs.pop("num_final_si_layers", 0)
+        self.final_si_units = kwargs.pop("final_si_units", 32)
 
         self.point_cloud_layer = Preprocessing(
             self.max_z,
-            kwargs.pop('basis_config', None),
-            kwargs.pop('basis_type', 'gaussian'),
-            sum_atoms=self.sum_atoms
+            kwargs.pop("basis_config", None),
+            kwargs.pop("basis_type", "gaussian"),
+            sum_points=self.sum_points,
         )
         self.model = None
 
@@ -70,9 +77,8 @@ class Builder(object):
 
     def normalize_array(self, array):
         if self.normalize_max and self.normalize_min:
-            return (
-                    (array - self.normalize_max) /
-                    (self.normalize_min - self.normalize_max)
+            return (array - self.normalize_max) / (
+                self.normalize_min - self.normalize_max
             )
         else:
             return array
@@ -88,36 +94,40 @@ class Builder(object):
 
     def get_inputs(self):
         return [
-            Input([self.num_atoms, 3], dtype='float32', name='cartesians'),
-            Input([self.num_atoms, ], dtype='int32', name='atomic_nums')
+            Input([self.num_points, 3], dtype="float32", name="cartesians"),
+            Input([self.num_points,], dtype="int32", name="atomic_nums"),
         ]
 
     def get_layers(self, **kwargs):
-        name = kwargs.pop('name', 'conv')
-        num_layers = kwargs.pop('num_layers', self.num_layers)
-        si_units = kwargs.pop('si_units', self.si_units)
+        name = kwargs.pop("name", "conv")
+        num_layers = kwargs.pop("num_layers", self.num_layers)
+        si_units = kwargs.pop("si_units", self.si_units)
         clusters, skips = [], []
         for cluster_num, num_layers_in_cluster in enumerate(num_layers):
-            skips.append(MolecularConvolution(
-                name='{}_cluster{}_skip'.format(name, cluster_num),
-                radial_factory=self.radial_factory,
-                si_units=si_units[cluster_num],
-                output_orders=self.output_orders,
-                activation=self.activation,
-                dynamic=self.dynamic,
-                sum_atoms=self.sum_atoms
-            ))
+            skips.append(
+                MolecularConvolution(
+                    name="{}_cluster{}_skip".format(name, cluster_num),
+                    radial_factory=self.radial_factory,
+                    si_units=si_units[cluster_num],
+                    output_orders=self.output_orders,
+                    activation=self.activation,
+                    dynamic=self.dynamic,
+                    sum_points=self.sum_points,
+                )
+            )
             layers = []
             for layer_num in range(num_layers_in_cluster):
                 layers.append(
                     MolecularConvolution(
-                        name='{}_cluster{}_layer{}'.format(name, cluster_num, layer_num),
+                        name="{}_cluster{}_layer{}".format(
+                            name, cluster_num, layer_num
+                        ),
                         radial_factory=self.radial_factory,
                         si_units=si_units[cluster_num],
                         output_orders=self.output_orders,
                         activation=self.activation,
                         dynamic=self.dynamic,
-                        sum_atoms=self.sum_atoms
+                        sum_points=self.sum_points,
                     )
                 )
             clusters.append(layers)
@@ -136,20 +146,29 @@ class Builder(object):
                 for layer in cluster:
                     output = layer(point_cloud + output)
                 shortcut = skip(point_cloud + shortcut)
-                output = Add()([output, shortcut])
+                output = [Add()([o, s]) for o, s in zip(output, shortcut)]
         else:
             for layer_num, layer in enumerate(clusters):
                 output = layer(point_cloud + output)
 
         return output
 
+    def make_embedding(self, one_hot):
+        scalar = Lambda(lambda x: tf.expand_dims(x, axis=-1), name="scalar_embedding")(
+            one_hot
+        )
+        vector = Lambda(lambda x: tf.tile(x, (1, 1, 1, 3)), name="vector_embedding")(
+            scalar
+        )
+        return MolecularSelfInteraction(self.embedding_units)([one_hot, scalar, vector])
+
     def get_learned_output(self, inputs: list):
-        inputs = [inputs[0], inputs[-1]]  # General case for a single molecule as input (r, z)
+        inputs = [
+            inputs[0],
+            inputs[-1],
+        ]  # General case for a single molecule as input (r, z)
         point_cloud = self.point_cloud_layer(inputs)  # one_hot, rbf, vectors
-        expanded_onehot = Lambda(lambda x: K.expand_dims(x, axis=-1))(point_cloud[0])
-        embedding = MolecularSelfInteraction(
-            self.embedding_units, name='embedding'
-        )([point_cloud[0], expanded_onehot])
+        embedding = self.make_embedding(one_hot=point_cloud[0])
         output = self.get_learned_tensors(embedding, point_cloud)
         return point_cloud, output
 

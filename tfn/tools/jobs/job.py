@@ -8,7 +8,7 @@ from sacred.observers import FileStorageObserver, MongoObserver, RunObserver
 from sacred.run import Run
 from tensorflow.keras.callbacks import ReduceLROnPlateau, TensorBoard
 from tensorflow.keras.models import Model
-from kerastuner.engine.tuner import Tuner
+from kerastuner import Tuner
 
 from ..callbacks import ClassificationMetrics
 from .config_defaults import run_config, loader_config, tb_config, lr_config
@@ -175,7 +175,7 @@ class DefaultJob(Job):
     def main(self, run, fitable=None, loader_config=None, fitable_config=None):
         loader, data = self.load_data(loader_config)
         fitable = fitable or self.load_fitable(loader, fitable_config)
-        fitable = self.fit(fitable, data[:-1])
+        fitable = self.fit(fitable, data[:-1], run)
         if self.exp_config["run_config"]["test"]:
             self.test_fitable(fitable, data[-1])
         if self.exp_config["run_config"]["save_model"]:
@@ -201,17 +201,20 @@ class DefaultJob(Job):
     ) -> Union[Model, Tuner]:
         raise NotImplementedError
 
-    def fit(self, fitable: Union[Model, Tuner], data: tuple) -> Union[Model, Tuner]:
+    def fit(
+        self, fitable: Union[Model, Tuner], data: tuple, run: Run = None
+    ) -> Union[Model, Tuner]:
         (x_train, y_train), val = data
+        logdir = run.observers[0].dir + "/logs"
         callbacks = [
-            TensorBoard(**self.exp_config["tb_config"]),
+            TensorBoard(**dict(**self.exp_config["tb_config"], log_dir=logdir)),
             ReduceLROnPlateau(**self.exp_config["lr_config"]),
         ]
         if self.exp_config["builder_config"]["builder_type"] in [
             "siamese_builder",
             "classifier_builder",
         ]:
-            callbacks.append(ClassificationMetrics(val))
+            callbacks.append(ClassificationMetrics(val, logdir))
         kwargs = dict(
             x=x_train,
             y=y_train,
@@ -222,8 +225,9 @@ class DefaultJob(Job):
             callbacks=callbacks,
             verbose=self.exp_config["run_config"]["fit_verbosity"],
         )
+        fitable.fit(**kwargs)
         try:
-            fitable.fit(**kwargs)
+            pass
         except AttributeError as e:
             try:
                 fitable.search(**kwargs)
