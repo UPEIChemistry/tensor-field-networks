@@ -6,15 +6,17 @@ from . import ISO17DataLoader
 class SN2Loader(ISO17DataLoader):
     @property
     def mu(self):
-        atomic_means = np.array([
-            0.,  # Dummy atoms
-            -13.579407869766147,  # H
-            -1028.9362774711024,  # C
-            -2715.578463075019,  # F
-            -12518.663203367176,  # Cl
-            -70031.09203874589,  # Br
-            -8096.587166328217,  # I
-        ]).reshape([-1, 1])
+        atomic_means = np.array(
+            [
+                0.0,  # Dummy points
+                -13.579407869766147,  # H
+                -1028.9362774711024,  # C
+                -2715.578463075019,  # F
+                -12518.663203367176,  # Cl
+                -70031.09203874589,  # Br
+                -8096.587166328217,  # I
+            ]
+        ).reshape([-1, 1])
         if self._force_mu is None:
             self.load_data()
         return atomic_means, self._force_mu
@@ -25,17 +27,19 @@ class SN2Loader(ISO17DataLoader):
 
         # Load from .npz
         data = np.load(self.path)
-        cartesians = self.pad_along_axis(data['R'], self.num_atoms)  # (mols, atoms, 3)
-        atomic_nums = self.pad_along_axis(data['Z'], self.num_atoms)  # (mols, atoms)
-        energies = data['E']  # (mols, )
-        forces = self.pad_along_axis(data['F'], self.num_atoms)
-        dipoles = data['D']  # (mols, 3)
+        cartesians = self.pad_along_axis(
+            data["R"], self.num_points
+        )  # (batch, points, 3)
+        atomic_nums = self.pad_along_axis(data["Z"], self.num_points)  # (batch, points)
+        energies = data["E"]  # (batch, )
+        forces = self.pad_along_axis(data["F"], self.num_points)
+        dipoles = data["D"]  # (batch, 3)
 
-        # Remap atoms
-        if self.map_atoms:
-            self.remap_atoms(atomic_nums)
+        # Remap points
+        if self.map_points:
+            self.remap_points(atomic_nums)
         self._max_z = np.max(atomic_nums) + 1
-        if kwargs.get('return_maxz', False):
+        if kwargs.get("return_maxz", False):
             return
 
         # Stats for forces/dipoles
@@ -43,10 +47,7 @@ class SN2Loader(ISO17DataLoader):
         self._force_sigma = np.std(forces)
 
         self._data = self.split_dataset(
-            data=[
-                [cartesians, atomic_nums],
-                [energies, forces]
-            ],
-            length=len(atomic_nums)
+            data=[[cartesians, atomic_nums], [energies, forces]],
+            length=len(atomic_nums),
         )
         return self._data

@@ -9,14 +9,14 @@ from . import DataLoader
 class TSLoader(DataLoader):
     def __init__(self, *args, **kwargs):
         self.use_energies = kwargs.pop("use_energies", False)
-        kwargs.setdefault("num_atoms", 29)
+        kwargs.setdefault("num_points", 29)
         super().__init__(*args, **kwargs)
 
     @property
     def mu(self):
         mu = np.array(
             [
-                0.0,  # Dummy atoms
+                0.0,  # Dummy points
                 -13.61312172,  # Hydrogens
                 -1029.86312267,  # Carbons
                 -1485.30251237,  # Nitrogens
@@ -68,12 +68,12 @@ class TSLoader(DataLoader):
         # Load Data
         with File(self.path, "r") as dataset:
             atomic_nums = self.pad_along_axis(
-                np.asarray(dataset["ts/atomic_numbers"], dtype="int"), self.num_atoms
+                np.asarray(dataset["ts/atomic_numbers"], dtype="int"), self.num_points
             )
             cartesians = {
                 structure_type: self.pad_along_axis(
                     np.nan_to_num(dataset["{}/cartesians".format(structure_type)]),
-                    self.num_atoms,
+                    self.num_points,
                 )
                 for structure_type in (
                     "ts",
@@ -92,8 +92,8 @@ class TSLoader(DataLoader):
             }
 
         # Remap
-        if self.map_atoms:
-            self.remap_atoms(atomic_nums)
+        if self.map_points:
+            self.remap_points(atomic_nums)
         self._max_z = np.max(atomic_nums) + 1
         if kwargs.get("return_maxz", False):
             return
@@ -150,8 +150,8 @@ class TSLoader(DataLoader):
         return self._data
 
     def make_siamese_dataset(self, tiled_atomic_nums, tiled_cartesians, labels):
-        # Make x shape: (mols, mols, 2, atoms, 3) Convert for output -> (batch, 2, atoms, 3)
-        c = np.zeros((len(labels), len(labels), 2, self.num_atoms, 3))
+        # Make x shape: (batch, batch, 2, points, 3) Convert for output -> (batch, 2, points, 3)
+        c = np.zeros((len(labels), len(labels), 2, self.num_points, 3))
         a = np.zeros(c.shape[:-1])
         diff = np.where(
             (np.expand_dims(labels, -1) - np.expand_dims(labels, -2)) != 0, 1, 0

@@ -12,5 +12,5 @@ class TestJob:
 
     def test_default_config(self, clear_logdirs):
         job = DefaultJob()
-        assert job.exp_config['loader_config'] == loader_config
-        assert job.exp_config['run_config'] == run_config
+        assert job.exp_config["loader_config"] == loader_config
+        assert job.exp_config["run_config"] == run_config

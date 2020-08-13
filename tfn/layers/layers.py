@@ -4,9 +4,9 @@ from typing import Iterable, Union
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import backend as K, activations, regularizers, initializers
-from tensorflow.keras.layers import Layer, Lambda
-from tensorflow.keras.models import model_from_json, Model
+from tensorflow.keras import activations, regularizers, initializers
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.models import model_from_json
 from tensorflow.keras.utils import get_custom_objects
 
 from .. import utils
@@ -14,7 +14,6 @@ from . import RadialFactory, DenseRadialFactory
 
 
 class EquivariantLayer(object):
-
     @staticmethod
     def get_tensor_ro(tensor):
         """
@@ -102,15 +101,19 @@ class Convolution(Layer, EquivariantLayer):
         from [0, filter_order]. If sequence is passed, then list index refers which RO values to
             use. E.g. passing [False, True] will produce only filters of RO1, not RO0.
     """
-    def __init__(self,
-                 radial_factory: Union[RadialFactory, str] = None,
-                 si_units: int = 16,
-                 activation: str = 'ssp',
-                 max_filter_order: Union[int, Iterable[bool]] = 1,
-                 output_orders: list = None,
-                 **kwargs):
-        self.sum_atoms = kwargs.pop('sum_atoms', False)
-        factory_kwargs = kwargs.pop('factory_kwargs', {})
+
+    def __init__(
+        self,
+        radial_factory: Union[RadialFactory, str] = None,
+        si_units: int = 16,
+        activation: str = "ssp",
+        max_filter_order: Union[int, Iterable[bool]] = 1,
+        output_orders: list = None,
+        **kwargs
+    ):
+        self.sum_points = kwargs.pop("sum_points", False)
+        factory_kwargs = kwargs.pop("factory_kwargs", {})
+        factory_kwargs["sum_points"] = self.sum_points
         super().__init__(**kwargs)
         if isinstance(radial_factory, str):
             try:
@@ -120,13 +123,15 @@ class Convolution(Layer, EquivariantLayer):
             else:
                 radial_factory = self._initialize_factory(config)
         elif isinstance(radial_factory, RadialFactory):
-            pass
+            radial_factory.sum_points = self.sum_points
         elif radial_factory is None:
-            radial_factory = DenseRadialFactory()
+            radial_factory = DenseRadialFactory(**factory_kwargs)
         else:
-            raise ValueError('arg `radial_factory` was of type {}, which is not supported. '
-                             'Read layer docs to see what types are allowed for '
-                             '`radial_factory`'.format(type(radial_factory).__name__))
+            raise ValueError(
+                "arg `radial_factory` was of type {}, which is not supported. "
+                "Read layer docs to see what types are allowed for "
+                "`radial_factory`".format(type(radial_factory).__name__)
+            )
         self.radial_factory = radial_factory
         self.si_units = si_units
         self.activation = activation
@@ -147,19 +152,21 @@ class Convolution(Layer, EquivariantLayer):
             si_units=self.si_units,
             activation=self.activation,
             max_filter_order=self.max_filter_order,
-            output_orders=self.output_orders
+            output_orders=self.output_orders,
         )
         return {**base, **updates}
 
     @staticmethod
     def _initialize_factory(config: dict):
-        return get_custom_objects()[config['type']].from_json(json.dumps(config))
+        return get_custom_objects()[config["type"]].from_json(json.dumps(config))
 
     def build(self, input_shape):
         # Validate input_shape
         if len(input_shape) < 3:
-            raise ValueError('Inputs must contain tensors: "image", "vectors", and feature tensors '
-                             'of the 3D point-cloud')
+            raise ValueError(
+                'Inputs must contain tensors: "image", "vectors", and feature tensors '
+                "of the 3D point-cloud"
+            )
         rbf, vectors, *features = input_shape
 
         # Validation and parameter prepping
@@ -175,14 +182,15 @@ class Convolution(Layer, EquivariantLayer):
                     self.radial_factory.get_radial(
                         shape[-2],
                         input_order=self.get_tensor_ro(shape),
-                        filter_order=filter_order
+                        filter_order=filter_order,
                     ),
                     filter_order=filter_order,
-                    sum_atoms=self.sum_atoms
+                    sum_points=self.sum_points,
                 )
                 for filter_order in filter_orders
                 if self._possible_coefficient(self.get_tensor_ro(shape), filter_order)
-            ] for shape in features
+            ]
+            for shape in features
         }
 
         # Build filter layers
@@ -203,8 +211,10 @@ class Convolution(Layer, EquivariantLayer):
 
     def call(self, inputs, **kwargs):
         if len(inputs) < 3:
-            raise ValueError('Inputs must contain tensors: "image", "vectors", '
-                             'and a list of features tensors.')
+            raise ValueError(
+                'Inputs must contain tensors: "image", "vectors", '
+                "and a list of features tensors."
+            )
         conv_outputs = self._point_convolution(inputs)
         concat_outputs = self._concatenation(conv_outputs)
         si_outputs = self._self_interaction(concat_outputs)
@@ -221,15 +231,18 @@ class Convolution(Layer, EquivariantLayer):
         """
         if input_order == 0 and filter_order == 1 and 1 in self.output_orders:
             return no_coefficients or self.cg_coefficient(
-                self.get_representation_index(filter_order), axis=-1)
+                self.get_representation_index(filter_order), axis=-1
+            )
         elif input_order == 1 and filter_order == 1 and 0 in self.output_orders:
             return no_coefficients or self.cg_coefficient(
-                self.get_representation_index(filter_order), axis=0)
+                self.get_representation_index(filter_order), axis=0
+            )
         elif input_order == 1 and filter_order == 1 and 1 in self.output_orders:
             return no_coefficients or self.lc_tensor()
         elif filter_order == 0 and input_order in self.output_orders:
             return no_coefficients or self.cg_coefficient(
-                self.get_representation_index(input_order), axis=-2)
+                self.get_representation_index(input_order), axis=-2
+            )
         else:
             return False
 
@@ -238,36 +251,35 @@ class Convolution(Layer, EquivariantLayer):
         output_tensors = []
         for tensor in features:
             feature_order = self.get_tensor_ro(tensor)
-            for hfilter in [f([image, vectors]) for f in self._filters[str(feature_order)]]:
+            for hfilter in [
+                f([image, vectors]) for f in self._filters[str(feature_order)]
+            ]:
                 filter_order = self.get_tensor_ro(hfilter)
                 coefficient = self._possible_coefficient(
-                    feature_order,
-                    filter_order,
-                    no_coefficients=False
+                    feature_order, filter_order, no_coefficients=False
                 )
                 if coefficient is not False:
-                    if self.sum_atoms:
-                        equation = 'ijk,mafj,mafk->mafi'
+                    if self.sum_points:
+                        equation = "ijk,mafj,mafk->mafi"
                     else:
-                        equation = 'ijk,mabfj,mbfk->mafi'
+                        equation = "ijk,mabfj,mbfk->mafi"
                     output_tensors.append(
-                        Lambda(
-                            lambda x: tf.einsum(equation, *x)
-                        )([coefficient, hfilter, tensor])
+                        tf.einsum(equation, coefficient, hfilter, tensor)
                     )
                 else:
                     warning(
-                        'Unable to find appropriate combination: {} x {} -> {},'
-                        ' skipping...'.format(
-                            feature_order,
-                            filter_order,
-                            self.output_orders
-                        ))
+                        "Unable to find appropriate combination: {} x {} -> {},"
+                        " skipping...".format(
+                            feature_order, filter_order, self.output_orders
+                        )
+                    )
                     continue
 
         if not output_tensors:
-            raise ValueError('No possible combinations between inputs and '
-                             'filters were found for requested output tensor orders.')
+            raise ValueError(
+                "No possible combinations between inputs and "
+                "filters were found for requested output tensor orders."
+            )
         return output_tensors
 
     def _compute_point_conv_output_shape(self, input_shape: list):
@@ -275,17 +287,22 @@ class Convolution(Layer, EquivariantLayer):
         :param input_shape: image, vectors, *features
         """
         image, vectors, *features = input_shape
-        mols, atoms, *_ = image
+        batch, points, *_ = image
         output_shapes = []
         for shape in features:
             feature_order = self.get_tensor_ro(shape)
-            for hfilter in [f.compute_output_shape([image, vectors])
-                            for f in self._filters[(str(feature_order))]]:
+            for hfilter in [
+                f.compute_output_shape([image, vectors])
+                for f in self._filters[(str(feature_order))]
+            ]:
                 filter_order = self.get_tensor_ro(hfilter)
-                coef = self._possible_coefficient(feature_order, filter_order,
-                                                  no_coefficients=False)
+                coef = self._possible_coefficient(
+                    feature_order, filter_order, no_coefficients=False
+                )
                 if coef is not False:
-                    output_shapes.append(tf.TensorShape([mols, atoms, shape[-2], coef.shape[0]]))
+                    output_shapes.append(
+                        tf.TensorShape([batch, points, shape[-2], coef.shape[0]])
+                    )
         return output_shapes  # TODO: Test this!
 
     def _nest_like_tensors(self, tensors):
@@ -297,18 +314,20 @@ class Convolution(Layer, EquivariantLayer):
 
     def _concatenation(self, inputs: list, axis=-2):
         nested_inputs = self._nest_like_tensors(inputs)
-        return [K.concatenate(tensors, axis=axis) for tensors in nested_inputs]
+        return [tf.concat(tensors, axis=axis) for tensors in nested_inputs]
 
     def _compute_concat_output_shape(self, input_shape: list):
         if not isinstance(input_shape, list):
             input_shape = [input_shape]
         nested_inputs = self._nest_like_tensors(input_shape)
-        mols, atoms, *_ = input_shape[0]
+        batch, points, *_ = input_shape[0]
         output_shapes = []
         for i, shapes in enumerate(nested_inputs):
             filter_dim = sum([shape[-2] for shape in shapes])
             output_shapes.append(
-                tf.TensorShape([mols, atoms, filter_dim, self.get_representation_index(i)])
+                tf.TensorShape(
+                    [batch, points, filter_dim, self.get_representation_index(i)]
+                )
             )
         return output_shapes
 
@@ -319,39 +338,38 @@ class Convolution(Layer, EquivariantLayer):
         if not isinstance(input_shape, list):
             input_shape = [list]
         return [
-            tf.TensorShape([shape[0], shape[1], self.si_units, shape[-1]]) for shape in input_shape
+            tf.TensorShape([shape[0], shape[1], self.si_units, shape[-1]])
+            for shape in input_shape
         ]
 
     def _equivariant_activation(self, inputs):
         return self._activation_layer(inputs)
 
     @staticmethod
-    def cg_coefficient(size, axis, dtype='float32'):
+    def cg_coefficient(size, axis, dtype="float32"):
         """
         Clebsch-Gordan coefficient of varying size and shape.
         """
-        return K.expand_dims(tf.eye(size, dtype=dtype), axis=axis)
+        return tf.expand_dims(tf.eye(size, dtype=dtype), axis=axis)
 
     @staticmethod
-    def lc_tensor(dtype='float32'):
+    def lc_tensor(dtype="float32"):
         """
         Constant Levi-Civita tensor.
         """
         eijk_ = np.zeros((3, 3, 3))
-        eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.
-        eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.
-        return K.constant(eijk_, dtype=dtype)
+        eijk_[0, 1, 2] = eijk_[1, 2, 0] = eijk_[2, 0, 1] = 1.0
+        eijk_[0, 2, 1] = eijk_[2, 1, 0] = eijk_[1, 0, 2] = -1.0
+        return tf.constant(eijk_, dtype=dtype)
 
     def compute_output_shape(self, input_shape):
         rbf, *_ = input_shape
-        mols, atoms, *_ = rbf
+        batch, points, *_ = rbf
         return [
-            tf.TensorShape([
-                mols,
-                atoms,
-                self.si_units,
-                self.get_representation_index(ro)
-            ]) for ro in self.output_orders
+            tf.TensorShape(
+                [batch, points, self.si_units, self.get_representation_index(ro)]
+            )
+            for ro in self.output_orders
         ]
 
 
@@ -366,11 +384,9 @@ class HarmonicFilter(Layer, EquivariantLayer):
     function aligned with provided unit vectors, returns a filter.
     :param filter_order: int. What rotation order the filter is.
     """
-    def __init__(self,
-                 radial: Union[Model, str],
-                 filter_order=0,
-                 **kwargs):
-        self.sum_atoms = kwargs.pop('sum_atoms', False)
+
+    def __init__(self, radial: Union[Layer, str], filter_order=0, **kwargs):
+        self.sum_points = kwargs.pop("sum_points", False)
         super().__init__(**kwargs)
         self.filter_order = filter_order
         if isinstance(radial, str):
@@ -383,16 +399,15 @@ class HarmonicFilter(Layer, EquivariantLayer):
         elif isinstance(radial, Layer):
             pass
         else:
-            raise ValueError('arg: `radial` is of type: {}'.format(type(radial).__name__))
+            raise ValueError(
+                "arg: `radial` is of type: {}".format(type(radial).__name__)
+            )
         self.radial = radial
         self.filter_order = filter_order
 
     def get_config(self):
         base = super().get_config()
-        updates = dict(
-            radial=self.radial.to_json(),
-            filter_order=self.filter_order
-        )
+        updates = dict(radial=self.radial.to_json(), filter_order=self.filter_order)
         return {**base, **updates}
 
     @staticmethod
@@ -410,7 +425,8 @@ class HarmonicFilter(Layer, EquivariantLayer):
             return []
 
     def build(self, input_shape):
-        self.radial.build(input_shape[0])  # Radial is generated from just the image
+        if not self.radial.built:
+            self.radial.build(input_shape[0])  # Radial is generated from just the image
 
     def call(self, inputs, **kwargs):
         """Generate the filter based on provided image (and vectors, depending on requested filter
@@ -421,65 +437,77 @@ class HarmonicFilter(Layer, EquivariantLayer):
             where filter_dim is determined by the radial function.
         """
         image, vectors = inputs
+        radial = self.radial(image)
         if self.filter_order == 0:
             # (batch, points, points, filter_dim, 1)
-            return K.expand_dims(self.radial(image), axis=-1)
+            return tf.expand_dims(radial, axis=-1)
         elif self.filter_order == 1:
-            masked_radial = self.mask_radial(self.radial(image), vectors)
+            masked_radial = self.mask_radial(radial, vectors)
             # (batch, points, points, 1, 3) * (batch, points, points, filters, 1)
-            return K.expand_dims(vectors, axis=-2) * K.expand_dims(masked_radial, axis=-1)
+            return tf.expand_dims(vectors, axis=-2) * tf.expand_dims(
+                masked_radial, axis=-1
+            )
         elif self.filter_order == 2:
-            masked_radial = self.mask_radial(self.radial(image), vectors)
+            masked_radial = self.mask_radial(radial, vectors)
             # (batch, points, points, filter_dim, 5) * (batch, points, points, filters, 1)
-            return K.expand_dims(self.l2_spherical_harmonic(vectors), axis=-2
-                                 ) * K.expand_dims(masked_radial, axis=-1)
+            return tf.expand_dims(
+                self.l2_spherical_harmonic(vectors), axis=-2
+            ) * tf.expand_dims(masked_radial, axis=-1)
         else:
-            raise ValueError('Unsupported RO passed for filter_order, only capable of supplying '
-                             'filters of up to and including RO2.')
+            raise ValueError(
+                "Unsupported RO passed for filter_order, only capable of supplying "
+                "filters of up to and including RO2."
+            )
 
     def mask_radial(self, radial, vectors):
-        l2_norm = Lambda(lambda x: tf.norm(x, axis=-1))(vectors)
-        condition = K.expand_dims(l2_norm < K.epsilon(), axis=-1)
-        if self.sum_atoms:
-            condition = K.tile(condition, [1, 1, radial.shape[-1]])
+        l2_norm = tf.norm(vectors, axis=-1)
+        condition = tf.expand_dims(l2_norm < 1e-7, axis=-1)
+        if self.sum_points:
+            condition = tf.tile(condition, [1, 1, radial.shape[-1]])
         else:
-            condition = K.tile(condition, [1, 1, 1, radial.shape[-1]])
+            condition = tf.tile(condition, [1, 1, 1, radial.shape[-1]])
 
         # (batch, points, points, output_dim)
-        return K.switch(condition, K.zeros_like(radial), radial)
+        return tf.where(condition, tf.zeros_like(radial), radial)
 
     @staticmethod
     def l2_spherical_harmonic(tensor):
         """
         Spherical harmonic functions for the L=2 example.
 
-        :param tensor: must be of shape [atoms, atoms, 3]
+        :param tensor: must be of shape [batch, points, points, 3]
         :return: tensor. Result of L2 spherical harmonic function applied to input tensor
         """
         x = tensor[:, :, :, 0]
         y = tensor[:, :, :, 1]
         z = tensor[:, :, :, 2]
-        r2 = K.maximum(K.sum(K.square(tensor), axis=-1), K.epsilon())
+        r2 = tf.maximum(tf.reduce_sum(tf.square(tensor), axis=-1), 1e-7)
         # return : (points, points, 5)
-        output = K.stack([
-            x * y / r2,
-            y * z / r2,
-            (-K.square(x) - K.square(y) + 2. * K.square(z)) / (2 * K.sqrt(K.constant(3)) * r2),
-            z * x / r2,
-            (K.square(x) - K.square(y)) / (2. * r2)
-        ], axis=-1)
+        output = tf.stack(
+            [
+                x * y / r2,
+                y * z / r2,
+                (-tf.square(x) - tf.square(y) + 2.0 * tf.square(z))
+                / (2 * tf.sqrt(3.0) * r2),
+                z * x / r2,
+                (tf.square(x) - tf.square(y)) / (2.0 * r2),
+            ],
+            axis=-1,
+        )
         return output
 
     def compute_output_shape(self, input_shape):
         rbf, vectors = input_shape
-        mols, atoms, *_ = rbf
+        batch, points, *_ = rbf
         filter_dim = self.radial.compute_output_shape(rbf)[-1]
-        return tf.TensorShape([
-            mols,
-            atoms,
-            filter_dim,
-            self.get_representation_index(self.filter_order)
-        ])
+        return tf.TensorShape(
+            [
+                batch,
+                points,
+                filter_dim,
+                self.get_representation_index(self.filter_order),
+            ]
+        )
 
 
 class SelfInteraction(Layer, EquivariantLayer):
@@ -494,13 +522,11 @@ class SelfInteraction(Layer, EquivariantLayer):
 
     :param units: int. New feature dimension for output tensors.
     """
-    def __init__(self,
-                 units: int,
-                 weight_lambda: float = 0.01,
-                 **kwargs):
+
+    def __init__(self, units: int, l2_lambda: float = 0.01, **kwargs):
         super().__init__(**kwargs)
         self.units = units
-        self.weight_lambda = weight_lambda
+        self.l2_lambda = l2_lambda
         self.kernels = None
 
     def build(self, input_shape):
@@ -508,11 +534,12 @@ class SelfInteraction(Layer, EquivariantLayer):
             input_shape = [input_shape]
         self.kernels = [
             self.add_weight(
-                name='sikernel_{}'.format(str(i)),
+                name="sikernel_{}".format(str(i)),
                 shape=(shape[-2], self.units),
                 initializer=initializers.glorot_normal(),
-                regularizer=regularizers.l2(self.weight_lambda)
-            ) for i, shape in enumerate(input_shape)
+                regularizer=regularizers.l2(self.l2_lambda),
+            )
+            for i, shape in enumerate(input_shape)
         ]
         self.built = True
 
@@ -521,19 +548,15 @@ class SelfInteraction(Layer, EquivariantLayer):
         if not isinstance(inputs, list):
             inputs = [inputs]
         for i, tensor in enumerate(inputs):
-            w = self.kernels[i]
-            tensor = K.permute_dimensions(tensor, pattern=[0, 1, 3, 2])
-            tensor = K.dot(tensor, w)
-            tensor = K.permute_dimensions(tensor, pattern=[0, 1, 3, 2])
+            w = self.kernels[i]  # (batch, points, filters, ro) x (filt) -> ()
+            tensor = tf.einsum("mafi,fu->maui", tensor, w)
             output_tensors.append(tensor)
 
         return output_tensors
 
     def get_config(self):
         base = super().get_config()
-        updates = dict(
-            units=self.units
-        )
+        updates = dict(units=self.units)
         return {**base, **updates}
 
     def compute_output_shape(self, input_shape):
@@ -554,19 +577,19 @@ class EquivariantActivation(Layer, EquivariantLayer):
     :param activation: str, callable. Defaults to shifted_softplus. Activation to apply to input
         feature tensors.
     """
-    def __init__(self,
-                 activation: str = 'ssp',
-                 bias_lambda: float = 0.01,
-                 **kwargs):
+
+    def __init__(self, activation: str = "ssp", bias_lambda: float = 0.01, **kwargs):
         super().__init__(**kwargs)
         if activation is None:
-            activation = 'ssp'
+            activation = "ssp"
         if isinstance(activation, str):
             self._activation = activation
             activation = activations.get(activation)
         elif not callable(activation):
-            raise ValueError('param `activation` must be a string mapping '
-                             'to a registered keras activation')
+            raise ValueError(
+                "param `activation` must be a string mapping "
+                "to a registered keras activation"
+            )
         self.activation = activation
         self.bias_lambda = bias_lambda
         self.biases = None
@@ -576,11 +599,12 @@ class EquivariantActivation(Layer, EquivariantLayer):
             input_shape = [input_shape]
         self.biases = [
             self.add_weight(
-                name='eabias_{}'.format(str(i)),
+                name="eabias_{}".format(str(i)),
                 shape=(shape[-2],),
                 regularizer=regularizers.l2(self.bias_lambda),
                 initializer=initializers.zeros(),
-            ) for i, shape in enumerate(input_shape)
+            )
+            for i, shape in enumerate(input_shape)
         ]
         self.built = True
 
@@ -592,25 +616,19 @@ class EquivariantActivation(Layer, EquivariantLayer):
             key = self.get_tensor_ro(tensor)
             b = self.biases[i]
             if key == 0:
-                tensor = K.squeeze(tensor, axis=-1)
-                a = self.activation(K.bias_add(tensor, b))
-                a = K.expand_dims(a, axis=-1)
+                tensor = tf.squeeze(tensor, axis=-1)
+                a = self.activation(tf.nn.bias_add(tensor, b))
+                a = tf.expand_dims(a, axis=-1)
                 output_tensors.append(a)
             elif key == 1:
                 l2_norm = utils.norm_with_epsilon(tensor, axis=-1)
-                a = self.activation(
-                    K.bias_add(l2_norm, b)
-                )
-                output_tensors.append(
-                    tensor * K.expand_dims(a / l2_norm, axis=-1)
-                )
+                a = self.activation(tf.nn.bias_add(l2_norm, b))
+                output_tensors.append(tensor * tf.expand_dims(a / l2_norm, axis=-1))
         return output_tensors
 
     def get_config(self):
         base = super().get_config()
-        updates = dict(
-            activation=self._activation
-        )
+        updates = dict(activation=self._activation)
         return {**base, **updates}
 
     def compute_output_shape(self, input_shape):

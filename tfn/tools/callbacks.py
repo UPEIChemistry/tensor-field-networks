@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras import backend as K
 from tensorflow.keras.metrics import categorical_accuracy
@@ -19,12 +20,14 @@ class TestModel(Callback):
 
 
 class ClassificationMetrics(Callback):
-    def __init__(self, validation):
+    def __init__(self, validation, log_dir):
         super().__init__()
         self.validation = validation
         self.val_f1s = None
         self.val_recalls = None
         self.val_precisions = None
+        self.file_writer = tf.summary.create_file_writer(log_dir + "/metrics")
+        self.file_writer.set_as_default()
 
     def on_epoch_end(self, epoch, logs=None):
         target = self.validation[1]
@@ -33,7 +36,12 @@ class ClassificationMetrics(Callback):
         precision = self.precision(target, prediction)
         recall = self.recall(target, prediction)
         accuracy = np.mean(categorical_accuracy(target, prediction))
+        tf.summary.scalar("f1score", f1score, epoch)
+        tf.summary.scalar("precision", precision, epoch)
+        tf.summary.scalar("recall", recall, epoch)
+        tf.summary.scalar("accuracy", accuracy, epoch)
         print(
+            f"Metrics for epoch {epoch}:"
             f" -- val_f1score: {f1score} -- val_precision: {precision} -- val_recall: {recall} "
             f" -- val_accuracy: {accuracy}"
         )

@@ -1,11 +1,14 @@
-from tensorflow.keras import backend as K, Model
+import tensorflow as tf
+from tensorflow.keras import Model
 from tensorflow.keras.layers import Input, Lambda, Add
 
 from atomic_images.layers import DistanceMatrix
 from tfn.layers import (
+    EquivariantActivation,
     MolecularSelfInteraction,
     MolecularConvolution,
     MolecularActivation,
+    SelfInteraction,
 )
 
 from . import Builder
@@ -17,7 +20,9 @@ class DualTrunkBuilder(Builder):
             self.embedding_units, name="embedding"
         )
         embeddings = [
-            embedding_layer([pc[0], Lambda(lambda x: K.expand_dims(x, axis=-1))(pc[0])])
+            embedding_layer(
+                [pc[0], Lambda(lambda x: tf.expand_dims(x, axis=-1))(pc[0])]
+            )
             for pc in point_clouds
         ]
         layers = self.get_layers()
@@ -29,14 +34,9 @@ class DualTrunkBuilder(Builder):
 
     def mix_dual_trunks(self, point_cloud: list, inputs: list, output_order: int = 0):
         # Select smaller molecule
-        one_hots = [p[0] for p in point_cloud]  # [(mols, atoms, max_z), ...]
+        one_hots = [p[0] for p in point_cloud]  # [(batch, points, max_z), ...]
         one_hot = Lambda(
-            lambda x: K.switch(
-                K.sum(K.sum(x[0], axis=-1), axis=-1)
-                > K.sum(K.sum(x[1], axis=-1), axis=-1),
-                x[1],
-                x[0],
-            ),
+            lambda x: tf.where(tf.reduce_sum(x[0]) > tf.reduce_sum(x[1]), x[1], x[0],),
             name="one_hot_select",
         )(one_hots)
         # Truncate to RO0 outputs
@@ -47,14 +47,20 @@ class DualTrunkBuilder(Builder):
             activation=self.activation,
             output_orders=[output_order],
             dynamic=self.dynamic,
-            sum_atoms=self.sum_atoms,
+            sum_points=self.sum_points,
         )
         outputs = [layer(z + x)[0] for x, z in zip(inputs, point_cloud)]
-        output = Lambda(lambda x: K.abs(x[1] - x[0]), name="absolute_difference")(
+        output = Lambda(lambda x: tf.abs(x[1] - x[0]), name="absolute_difference")(
             outputs
         )
-        output = self.get_final_output(one_hot, [output])
+        output = self.get_final_output(one_hot, output)
         return one_hot, output
+
+    def get_final_output(self, one_hot: tf.Tensor, inputs: list, output_dim: int = 1):
+        output = inputs
+        for _ in range(self.num_final_si_layers):
+            output = SelfInteraction(self.final_si_units)(output)
+        return SelfInteraction(output_dim)(output)
 
     def get_model_output(self, point_cloud: list, inputs: list):
         raise NotImplementedError
@@ -63,9 +69,9 @@ class DualTrunkBuilder(Builder):
 class TSBuilder(DualTrunkBuilder):
     def get_inputs(self):
         return [
-            Input([self.num_atoms,], name="atomic_nums", dtype="int32"),
-            Input([self.num_atoms, 3], name="reactant_cartesians", dtype="float32"),
-            Input([self.num_atoms, 3], name="product_cartesians", dtype="float32"),
+            Input([self.num_points,], name="atomic_nums", dtype="int32"),
+            Input([self.num_points, 3], name="reactant_cartesians", dtype="float32"),
+            Input([self.num_points, 3], name="product_cartesians", dtype="float32"),
         ]
 
     def get_model(self, use_cache=True):
@@ -80,10 +86,10 @@ class TSBuilder(DualTrunkBuilder):
         )
         ts_cartesians = Add(name="ts_cartesians")(
             [midpoint, vectors]
-        )  # (mols, atoms, 3)
+        )  # (batch, points, 3)
         output = DistanceMatrix(name="ts_dist_matrix")(
             ts_cartesians
-        )  # (mols, atoms, atoms)
+        )  # (batch, points, points)
         self.model = Model(inputs=inputs, outputs=output, name=self.name)
         return self.model
 
@@ -95,21 +101,22 @@ class TSBuilder(DualTrunkBuilder):
 
     def get_model_output(self, point_cloud: list, inputs: list):
         one_hot, output = self.mix_dual_trunks(point_cloud, inputs, output_order=1)
-        vectors = Lambda(lambda x: K.squeeze(x, axis=-2), name="ts_vectors")(output[0])
-        return vectors  # (mols, atoms, 3)
+        vectors = Lambda(lambda x: tf.squeeze(x, axis=-2), name="ts_vectors")(output[0])
+        return vectors  # (batch, points, 3)
 
 
 class ClassifierMixIn(object):
     @staticmethod
-    def average_votes(one_hot: list, inputs: list):
-        output = MolecularActivation(activation="sigmoid")(one_hot + inputs)
+    def average_votes(inputs: list):
+        output = EquivariantActivation(activation="sigmoid")(inputs)
         output = Lambda(
-            lambda x: K.squeeze(K.squeeze(x, axis=-1), axis=-1), name="squeeze"
+            lambda x: tf.squeeze(tf.squeeze(x, axis=-1), axis=-1), name="squeeze"
         )(
             output[0]
-        )  # (mols, atoms)
+        )  # (batch, points)
         output = Lambda(
-            lambda x: K.mean(x, axis=-1, keepdims=True), name="molecular_average"
+            lambda x: tf.reduce_mean(x, axis=-1, keepdims=True),
+            name="molecular_average",
         )(output)
         return output
 
@@ -117,8 +124,8 @@ class ClassifierMixIn(object):
 class TSSiameseClassifierBuilder(DualTrunkBuilder, ClassifierMixIn):
     def get_inputs(self):
         return [
-            Input([2, self.num_atoms,], name="atomic_nums", dtype="int32"),
-            Input([2, self.num_atoms, 3], name="cartesians", dtype="float32"),
+            Input([2, self.num_points,], name="atomic_nums", dtype="int32"),
+            Input([2, self.num_points, 3], name="cartesians", dtype="float32"),
         ]
 
     def get_learned_output(self, inputs: list):
@@ -134,14 +141,14 @@ class TSSiameseClassifierBuilder(DualTrunkBuilder, ClassifierMixIn):
 
     def get_model_output(self, point_cloud: list, inputs: list):
         one_hot, output = self.mix_dual_trunks(point_cloud, inputs)
-        return self.average_votes([one_hot], output)
+        return self.average_votes(output)
 
 
 class TSClassifierBuilder(Builder, ClassifierMixIn):
     def get_inputs(self):
         return [
-            Input([self.num_atoms,], name="atomic_nums", dtype="int32"),
-            Input([self.num_atoms, 3], name="cartesians", dtype="float32"),
+            Input([self.num_points,], name="atomic_nums", dtype="int32"),
+            Input([self.num_points, 3], name="cartesians", dtype="float32"),
         ]
 
     def get_learned_output(self, inputs: list):
@@ -159,7 +166,7 @@ class TSClassifierBuilder(Builder, ClassifierMixIn):
             activation=self.activation,
             output_orders=[0],
             dynamic=self.dynamic,
-            sum_atoms=self.sum_atoms,
+            sum_points=self.sum_points,
         )(point_cloud + inputs)
         output = self.get_final_output(point_cloud[0], output)
-        return self.average_votes([one_hot], output)
+        return self.average_votes(output)

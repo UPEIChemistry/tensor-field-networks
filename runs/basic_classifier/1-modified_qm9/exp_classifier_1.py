@@ -3,12 +3,12 @@ from tfn.tools.jobs import SingleModel
 
 job = SingleModel(
     exp_config={
-        "name": "BASIC CLASSIFIER ON TS DATASET EXPERIMENT 0",
+        "name": "BASIC CLASSIFIER ON MODIFIED QM9 DATASET",
         "notes": "Using all defaults",
         "run_config": {"loss": "binary_crossentropy"},
         "loader_config": {
-            "loader_type": "ts_loader",
-            "load_kwargs": {"output_type": "classifier"},
+            "loader_type": "qm9_loader",
+            "load_kwargs": {"modify_structures": True, "classifier_output": True},
         },
         "builder_config": {"builder_type": "classifier_builder"},
     }

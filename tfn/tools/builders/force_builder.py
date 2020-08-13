@@ -1,7 +1,7 @@
-from atomic_images.layers import Unstandardization
-from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.layers import Lambda
+import tensorflow as tf
+from tensorflow.keras.layers import Lambda
 
+from atomic_images.layers import Unstandardization
 from . import Builder
 
 
@@ -15,20 +15,28 @@ class ForceBuilder(Builder):
         return outputs
 
     def sanitize_molecular_energy(self, energy, one_hot):
-        atomic_energies = Lambda(lambda x: K.squeeze(x, axis=-1), name='energy_squeeze')(energy)
+        atomic_energies = Lambda(
+            lambda x: tf.squeeze(x, axis=-1), name="energy_squeeze"
+        )(energy)
         atomic_energies = Unstandardization(
             self.mu[0],
-            self.sigma[0], trainable=self.trainable_offsets, name='atomic_energy')(
-            [one_hot, atomic_energies]
+            self.sigma[0],
+            trainable=self.trainable_offsets,
+            name="atomic_energy",
+        )([one_hot, atomic_energies])
+        return Lambda(lambda x: tf.reduce_sum(x, axis=-2), name="molecular_energy")(
+            atomic_energies
         )
-        return Lambda(lambda x: K.sum(x, axis=-2), name='molecular_energy')(atomic_energies)
 
     def sanitize_atomic_forces(self, forces):
-        atomic_forces = Lambda(lambda x: K.squeeze(x, axis=-2), name='force_squeeze')(forces)
+        atomic_forces = Lambda(lambda x: tf.squeeze(x, axis=-2), name="force_squeeze")(
+            forces
+        )
         if self.standardize:
             atomic_forces = Unstandardization(
                 self.mu[1],
-                self.sigma[1], trainable=self.trainable_offsets, name='atomic_forces')(
-                atomic_forces
-            )
+                self.sigma[1],
+                trainable=self.trainable_offsets,
+                name="atomic_forces",
+            )(atomic_forces)
         return atomic_forces
