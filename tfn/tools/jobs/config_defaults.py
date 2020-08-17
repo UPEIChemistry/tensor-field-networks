@@ -114,11 +114,9 @@ default_architecture_search = {  # 1994 possible models
 }
 
 
-default_grid_search = {  # 48 models
-    "model_num_layers": [  # 4
-        [2 for _ in range(i + 1)]
-        for i in [0, 2, 8, 16]  # largest number of clusters (layers = 2 * clusters)
-    ],
+default_grid_search = {  # 96 models
+    "sum_atoms": [True, False],  # 2
+    "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
     "num_final_si_layers": [1, 2],  # 2
     "max_filter_order": [0, 1],  # 2
     "radial_factory": ["single_dense", "multi_dense"],  # 2

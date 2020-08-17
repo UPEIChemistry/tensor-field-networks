@@ -32,6 +32,16 @@ class TestQM9Loader:
         assert len(data[0][0]) == 3
         assert data[0][1][0].shape[1:] == (loader.num_points, loader.num_points)
 
+    def test_cartesian(self):
+        loader = QM9DataDataLoader(
+            os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:20:10"
+        )
+        data = loader.load_data(
+            modify_structures=True, modify_distance=1, output_distance_matrix=False
+        )
+        assert len(data[0][0]) == 3
+        assert data[0][1][0].shape[1:] == (loader.num_points, 3)
+
     def test_classifier(self):
         loader = QM9DataDataLoader(
             os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:20:10"

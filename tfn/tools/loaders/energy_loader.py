@@ -81,7 +81,11 @@ class QM9DataDataLoader(DataLoader):
                 length = len(labels)
             else:
                 x = [atomic_nums, forward_cartesians, reverse_cartesians]
-                y = [DistanceMatrix()(cartesians)]
+                y = [
+                    DistanceMatrix()(cartesians)
+                    if kwargs.get("output_distance_matrix", True)
+                    else cartesians
+                ]
                 length = len(atomic_nums)
 
         else:
