@@ -10,6 +10,16 @@ class TestScalarModels:
         )
         job.run()
 
+    def test_non_residual(self, run_config, builder_config):
+        job = SingleModel(
+            {
+                "name": "test",
+                "run_config": run_config,
+                "builder_config": dict(**builder_config, residual=False),
+            }
+        )
+        job.run()
+
     def test_sum_points(self, run_config, builder_config):
         job = SingleModel(
             {
@@ -51,26 +61,6 @@ class TestScalarModels:
                         },
                     }
                 ),
-            }
-        )
-        job.run()
-
-    def test_multi_conv_radial(self, run_config, builder_config):
-        job = SingleModel(
-            {
-                "name": "test",
-                "run_config": run_config,
-                "builder_config": dict(**builder_config, radial_factory="multi_conv"),
-            }
-        )
-        job.run()
-
-    def test_single_conv_radial(self, run_config, builder_config):
-        job = SingleModel(
-            {
-                "name": "test",
-                "run_config": run_config,
-                "builder_config": dict(**builder_config, radial_factory="single_conv"),
             }
         )
         job.run()
@@ -149,6 +139,25 @@ class TestVectorModels:
                 "run_config": run_config,
                 "loader_config": loader_config,
                 "builder_config": dict(**builder_config, builder_type="ts_builder"),
+            }
+        )
+        job.run()
+
+    def test_cartesian_less(self, run_config, builder_config):
+        loader_config = {
+            "loader_type": "ts_loader",
+            "load_kwargs": {"output_distance_matrix": False},
+        }
+        job = SingleModel(
+            {
+                "name": "test",
+                "run_config": run_config,
+                "loader_config": loader_config,
+                "builder_config": dict(
+                    **builder_config,
+                    builder_type="ts_builder",
+                    output_distance_matrix=False
+                ),
             }
         )
         job.run()

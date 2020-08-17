@@ -160,7 +160,11 @@ class Builder(object):
         vector = Lambda(lambda x: tf.tile(x, (1, 1, 1, 3)), name="vector_embedding")(
             scalar
         )
-        return MolecularSelfInteraction(self.embedding_units)([one_hot, scalar, vector])
+        if self.residual:
+            pre_embedding = [one_hot, scalar, vector]
+        else:
+            pre_embedding = [one_hot, scalar]
+        return MolecularSelfInteraction(self.embedding_units)(pre_embedding)
 
     def get_learned_output(self, inputs: list):
         inputs = [

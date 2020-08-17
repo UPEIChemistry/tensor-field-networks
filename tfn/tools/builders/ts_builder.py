@@ -7,7 +7,6 @@ from tfn.layers import (
     EquivariantActivation,
     MolecularSelfInteraction,
     MolecularConvolution,
-    MolecularActivation,
     SelfInteraction,
 )
 
@@ -67,6 +66,10 @@ class DualTrunkBuilder(Builder):
 
 
 class TSBuilder(DualTrunkBuilder):
+    def __init__(self, *args, **kwargs):
+        self.output_distance_matrix = kwargs.pop("output_distance_matrix", True)
+        super().__init__(*args, **kwargs)
+
     def get_inputs(self):
         return [
             Input([self.num_points,], name="atomic_nums", dtype="int32"),
@@ -84,12 +87,11 @@ class TSBuilder(DualTrunkBuilder):
         midpoint = Lambda(lambda x: (x[0] + x[1]) / 2, name="averaged_midpoint")(
             [inputs[1], inputs[2]]
         )
-        ts_cartesians = Add(name="ts_cartesians")(
-            [midpoint, vectors]
-        )  # (batch, points, 3)
-        output = DistanceMatrix(name="ts_dist_matrix")(
-            ts_cartesians
-        )  # (batch, points, points)
+        output = Add(name="ts_cartesians")([midpoint, vectors])  # (batch, points, 3)
+        if self.output_distance_matrix:
+            output = DistanceMatrix(name="ts_dist_matrix")(
+                output
+            )  # (batch, points, points)
         self.model = Model(inputs=inputs, outputs=output, name=self.name)
         return self.model
 
