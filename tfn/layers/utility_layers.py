@@ -5,6 +5,7 @@ from atomic_images.layers import (
     OneHot,
     CosineBasis,
     ShiftedCosineBasis,
+    CosineCutoff,
     GaussianBasis,
     DistanceMatrix,
 )
@@ -52,17 +53,17 @@ class Preprocessing(Layer):
         else:
             basis_function = GaussianBasis(**self.basis_config)
         self.basis_function = basis_function
+        self.cutoff = CosineCutoff(cutoff=kwargs.pop("cutoff", 15.0))
         self.distance_matrix = DistanceMatrix()
         self.unit_vectors = UnitVectors(self.sum_points)
 
     def call(self, inputs, **kwargs):
         r, z = inputs
-        rbf = self.basis_function(
-            self.distance_matrix(r)
-        )  # (batch, points, points, basis_fns)
-        vectors = self.unit_vectors(
-            r
-        )  # (batch, points, points, 3) or (batch, points, 3)
+        dist_matrix = self.distance_matrix(r)
+        #  (batch, points, points, basis_functions)
+        rbf = self.cutoff([dist_matrix, self.basis_function(dist_matrix)])
+        # (batch, points, points, 3)
+        vectors = self.unit_vectors(r)
         if self.sum_points:
             rbf = tf.reduce_sum(rbf, axis=-2)
         return [self.one_hot(z), rbf, vectors]
