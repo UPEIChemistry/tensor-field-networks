@@ -8,6 +8,7 @@ run_config = {  # Defines kwargs used when running a job
     "epochs": 100,
     "batch_size": 32,
     "test": True,
+    "write_test_results": False,
     "save_model": True,
     "use_strategy": False,
     "loss": "mae",
@@ -114,8 +115,9 @@ default_architecture_search = {  # 1994 possible models
 }
 
 
-default_grid_search = {  # 96 models
+default_grid_search = {  # 192 models
     "sum_atoms": [True, False],  # 2
+    "residual": [True, False],  # 2
     "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
     "num_final_si_layers": [1, 2],  # 2
     "max_filter_order": [0, 1],  # 2

@@ -157,7 +157,7 @@ class Job(object):
         """
         raise NotImplementedError
 
-    def save_results(self, run: Run, fitable: Union[Model, Tuner]):
+    def save_model(self, run: Run, fitable: Union[Model, Tuner]):
         raise NotImplementedError
 
 
@@ -177,9 +177,9 @@ class DefaultJob(Job):
         fitable = fitable or self.load_fitable(loader, fitable_config)
         fitable = self.fit(fitable, data[:-1], run)
         if self.exp_config["run_config"]["test"]:
-            self.test_fitable(fitable, data[-1])
+            self.test_fitable(fitable, data[-1], run)
         if self.exp_config["run_config"]["save_model"]:
-            self.save_results(run, fitable)
+            self.save_model(run, fitable)
         return fitable
 
     def load_data(self, config: dict = None) -> Tuple[DataLoader, Tuple]:
@@ -241,7 +241,7 @@ class DefaultJob(Job):
     def test_fitable(self, fitable: Union[Model, Tuner], test_data: tuple) -> float:
         raise NotImplementedError
 
-    def save_results(self, run: Run, fitable: Union[Model, Tuner]):
+    def save_model(self, run: Run, fitable: Union[Model, Tuner]):
         raise NotImplementedError
 
     def new_model_path(self, i):

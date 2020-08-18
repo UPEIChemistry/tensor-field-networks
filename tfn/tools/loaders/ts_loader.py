@@ -113,7 +113,9 @@ class TSLoader(DataLoader):
 
         elif input_type == "siamese" or output_type == "siamese":
             x, y = self.make_siamese_dataset(
-                *self.tile_arrays(atomic_nums, cartesians, blacklist=None)
+                *self.tile_arrays(
+                    atomic_nums, cartesians, blacklist=kwargs.pop("blacklist", None)
+                )
             )
             x, y = self.shuffle_arrays(x, y, len(y[0]))
             length = len(y[0])

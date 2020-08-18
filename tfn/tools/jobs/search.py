@@ -87,7 +87,7 @@ class Search(DefaultJob):
         for model in models:
             model.evaluate(x_test, y_test, verbose=0)
 
-    def save_results(self, run: Run, fitable: Union[Model, Tuner]):
+    def save_model(self, run: Run, fitable: Union[Model, Tuner]):
         fitable.results_summary()
         for i, model in enumerate(
             fitable.get_best_models(self.exp_config["run_config"]["num_models_to_test"])
