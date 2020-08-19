@@ -58,18 +58,3 @@ def run_config():
 @pytest.fixture
 def builder_config():
     return {"dynamic": True}
-
-
-@pytest.fixture
-def factory_config():
-    return {"run_eagerly": False, "dynamic": False}
-
-
-@pytest.fixture
-def tuner_config():
-    return {"objective": "loss"}
-
-
-@pytest.fixture
-def architecture_search():
-    return {"si_units": {"type": "choice", "kwargs": {"values": [8, 16]}}}
