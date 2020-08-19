@@ -112,13 +112,13 @@ class ISO17DataLoader(DataLoader):
 
         # Split data
         self.splitting = re.search(r"\d{1,2}:\d{1,2}", self.splitting).group(0)
-        self.data = self.split_dataset(
+        self.data = self.three_way_split(
             data=[data[dataset_name][:2], data[dataset_name][2:]],
             length=len(data[dataset_name][1]),
         )
         self.splitting = None
         self.data.extend(
-            self.split_dataset(
+            self.three_way_split(
                 data=[data[test_name][:2], data[test_name][2:]],
                 length=len(data[dataset_name][1]),
             )

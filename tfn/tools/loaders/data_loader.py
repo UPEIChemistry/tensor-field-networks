@@ -73,7 +73,7 @@ class DataLoader(object):
         if isinstance(self.splitting, int):
             return self.cross_validate()
         else:
-            return self.split_dataset()
+            return self.three_way_split()
 
     def few_examples(self, num_examples: int = 5, **kwargs):
         data = self.load_data(**kwargs)
@@ -89,9 +89,26 @@ class DataLoader(object):
         return truncated_data
 
     def cross_validate(self, data: list = None, length: int = None):
-        pass
+        """
+        :return: data in the format: [(x_0, y_0), (x_1, y_1), ...] for number of folds specified
+            in splitting param.
+        """
+        data = data or self.data
+        length = length or self.dataset_length
+        if self.splitting < 2:
+            raise ValueError(
+                "Must provide a splitting param of 2 or more folds for cross "
+                "validation"
+            )
+        fold_length, remainder = divmod(length, self.splitting)
+        folds = [fold_length for _ in range(self.splitting)]
+        if remainder > 0.25 * length:
+            folds.append(remainder)
+        else:
+            folds[-1] += remainder
+        return self.split_data(data, folds)
 
-    def split_dataset(self, data: list = None, length: int = None):
+    def three_way_split(self, data: list = None, length: int = None):
         """
         :return: data in the format: [
             [
@@ -101,7 +118,7 @@ class DataLoader(object):
             ]
         ]
         """
-        x_data, y_data = data or self.data
+        data = data or self.data
         length = length or self.dataset_length
         if self.splitting is None:
             splits = [length]  # Use 100 percent of dataset as train data
@@ -110,36 +127,29 @@ class DataLoader(object):
                 int(int(x) / 100 * length)
                 for x in re.findall(r"(\d{1,2})", self.splitting)
             ]
-            splits[np.argmax(splits)] += length - sum(
+            splits[int(np.argmax(splits))] += length - sum(
                 splits
             )  # Add remainder to largest split
-        output_data = []
-        for i in range(len(splits)):
-            if i == 0:
-                first_split = splits[0]
-                output_data.append(
-                    (
-                        [x[:first_split] for x in x_data],
-                        [y[:first_split] for y in y_data],
-                    )
-                )
-            elif i == 1:
-                first_split, second_split = splits[:2]
-                output_data.append(
-                    (
-                        [x[first_split : first_split + second_split] for x in x_data],
-                        [y[first_split : first_split + second_split] for y in y_data],
-                    )
-                )
-            elif i == 2:
-                first_split, second_split = splits[:2]
-                output_data.append(
-                    (
-                        [x[first_split + second_split :] for x in x_data],
-                        [y[first_split + second_split :] for y in y_data],
-                    )
-                )
+        return self.split_data(data, splits)
 
+    @staticmethod
+    def split_data(data: list, splits: list):
+        """
+        :param data: dataset in the form [x, y], where x and y are lists of ndarrays.
+        :param splits: List[int].
+        :return: data split according to splits, with None for splits with length == 0.
+        """
+        x_data, y_data = data
+        output_data = []
+        for i, split in enumerate(splits):
+            cursor = sum(splits[:i])
+            boundary = cursor + split
+            output_data.append(
+                (
+                    [x[cursor:boundary] for x in x_data],
+                    [y[cursor:boundary] for y in y_data],
+                )
+            )
         output_data = [o if len(o[0][0]) != 0 else None for o in output_data]
         return output_data
 

@@ -1,6 +1,7 @@
 import os
 
 from math import ceil, isclose
+import numpy as np
 
 from tfn.tools.loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader
 
@@ -42,6 +43,14 @@ class TestQM9Loader:
         assert isclose(len(data[0][0][0]), ceil(0.70 * 133885), abs_tol=1)
         assert data[1] is None
         assert isclose(len(data[2][0][0]), ceil(0.30 * 133885), abs_tol=1)
+
+    def test_cross_validation_splitting(self):
+        loader = QM9DataDataLoader(
+            os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting=7
+        )
+        data = loader.load_data()
+        assert len(data) == 7
+        assert len(np.concatenate([d[0][0] for d in data], axis=0)) == 133885
 
     def test_modified(self):
         loader = QM9DataDataLoader(
