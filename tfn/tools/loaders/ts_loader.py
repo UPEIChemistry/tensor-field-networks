@@ -9,7 +9,6 @@ from . import DataLoader
 class TSLoader(DataLoader):
     def __init__(self, *args, **kwargs):
         self.use_energies = kwargs.pop("use_energies", False)
-        kwargs.setdefault("num_points", 29)
         super().__init__(*args, **kwargs)
 
     @property
@@ -62,8 +61,8 @@ class TSLoader(DataLoader):
             'energies', 'both', 'classifier', 'siamese']
         :return: data in the format: [(x_train, y_train), (x_val, y_val), (x_test, y_test)]
         """
-        if self._data is not None and kwargs.get("cache", True):
-            return self._data
+        if self.data is not None and kwargs.get("cache", True):
+            return self.data
 
         # Load Data
         with File(self.path, "r") as dataset:
@@ -148,8 +147,9 @@ class TSLoader(DataLoader):
             x, y = self.shuffle_arrays(x, y, length)
 
         # Split and serve data
-        self._data = self.split_dataset(data=[x, y], length=length)
-        return self._data
+        self.data = [x, y]
+        self.dataset_length = length
+        return super().load_data()
 
     def make_siamese_dataset(self, tiled_atomic_nums, tiled_cartesians, labels):
         # Make x shape: (batch, batch, 2, points, 3) Convert for output -> (batch, 2, points, 3)
@@ -173,7 +173,8 @@ class TSLoader(DataLoader):
         x = [a[indices], c[indices]]
         return x, labels
 
-    def tile_arrays(self, atomic_nums, cartesians, blacklist: list = None):
+    @staticmethod
+    def tile_arrays(atomic_nums, cartesians, blacklist: list = None):
         """:return: tiled/concatenated arrays: [atomic_nums, cartesians <- (concat), labels]"""
         blacklist = blacklist or []
         tiled_atomic_nums = np.tile(atomic_nums, (5 - len(blacklist), 1))

@@ -1,9 +1,15 @@
 import numpy as np
 
-from . import ISO17DataLoader
+from . import DataLoader
 
 
-class SN2Loader(ISO17DataLoader):
+class SN2Loader(DataLoader):
+    def __init__(self, *args, **kwargs):
+        self.use_energies = kwargs.pop("use_energies", True)
+        self._force_mu = None
+        self._force_sigma = None
+        super().__init__(*args, **kwargs)
+
     @property
     def mu(self):
         atomic_means = np.array(
@@ -21,9 +27,15 @@ class SN2Loader(ISO17DataLoader):
             self.load_data()
         return atomic_means, self._force_mu
 
+    @property
+    def sigma(self):
+        if self._force_mu is None:
+            self.load_data()
+        return np.ones_like(self.mu[0]), self._force_sigma
+
     def load_data(self, *args, **kwargs):
-        if self._data is not None:
-            return self._data
+        if self.data is not None:
+            return self.data
 
         # Load from .npz
         data = np.load(self.path)
@@ -46,8 +58,6 @@ class SN2Loader(ISO17DataLoader):
         self._force_mu = np.mean(forces)
         self._force_sigma = np.std(forces)
 
-        self._data = self.split_dataset(
-            data=[[cartesians, atomic_nums], [energies, forces]],
-            length=len(atomic_nums),
-        )
-        return self._data
+        self.data = [[cartesians, atomic_nums], [energies, forces]]
+        self.dataset_length = len(atomic_nums)
+        return super().load_data()

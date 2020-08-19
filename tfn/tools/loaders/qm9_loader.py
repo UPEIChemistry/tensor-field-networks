@@ -6,10 +6,6 @@ from .data_loader import DataLoader
 
 
 class QM9DataDataLoader(DataLoader):
-    def __init__(self, *args, **kwargs):
-        kwargs.setdefault("num_points", 29)
-        super().__init__(*args, **kwargs)
-
     @property
     def mu(self):
         return np.array(
@@ -45,8 +41,8 @@ class QM9DataDataLoader(DataLoader):
                 (x_test, y_test)
             ], where x = (cartesians, atomic_nums) and y = energies
         """
-        if self._data is not None:
-            return self._data
+        if self.data is not None:
+            return self.data
         with h5py.File(self.path, "r") as dataset:
             cartesians = self.pad_along_axis(
                 np.nan_to_num(dataset["QM9/R"]), self.num_points
@@ -93,8 +89,9 @@ class QM9DataDataLoader(DataLoader):
             y = [energies]
             length = len(atomic_nums)
 
-        self._data = self.split_dataset([x, y], length=length)
-        return self._data
+        self.data = [x, y]
+        self.dataset_length = length
+        return super().load_data(*args, **kwargs)
 
     def modify_structures(self, c, distance=0.5, seed=0):
         np.random.seed(seed)

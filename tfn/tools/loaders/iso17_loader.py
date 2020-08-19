@@ -11,7 +11,6 @@ class ISO17DataLoader(DataLoader):
         self.use_energies = kwargs.pop("use_energies", True)
         self._force_mu = None
         self._force_sigma = None
-        kwargs.setdefault("num_points", 29)
         super().__init__(*args, **kwargs)
 
     @property
@@ -61,11 +60,11 @@ class ISO17DataLoader(DataLoader):
 
         """
         if (
-            self._data is not None
+            self.data is not None
             and "dataset_type" not in kwargs
             and "test_type" not in kwargs
         ):
-            return self._data
+            return self.data
         dataset_name = kwargs.get("dataset_type", "reference")
         test_name = kwargs.get("test_type", "test_other")
         data = {
@@ -113,15 +112,15 @@ class ISO17DataLoader(DataLoader):
 
         # Split data
         self.splitting = re.search(r"\d{1,2}:\d{1,2}", self.splitting).group(0)
-        self._data = self.split_dataset(
+        self.data = self.split_dataset(
             data=[data[dataset_name][:2], data[dataset_name][2:]],
             length=len(data[dataset_name][1]),
         )
         self.splitting = None
-        self._data.extend(
+        self.data.extend(
             self.split_dataset(
                 data=[data[test_name][:2], data[test_name][2:]],
                 length=len(data[dataset_name][1]),
             )
         )
-        return self._data
+        return self.data
