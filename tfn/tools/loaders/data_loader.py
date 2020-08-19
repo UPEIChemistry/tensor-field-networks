@@ -90,6 +90,9 @@ class DataLoader(object):
                 int(int(x) / 100 * length)
                 for x in re.findall(r"(\d{1,2})", self.splitting)
             ]
+            splits[np.argmax(splits)] += length - sum(
+                splits
+            )  # Add remainder to largest split
         output_data = []
         for i in range(len(splits)):
             if i == 0:
@@ -117,6 +120,7 @@ class DataLoader(object):
                     )
                 )
 
+        output_data = [o if len(o[0][0]) != 0 else None for o in output_data]
         return output_data
 
     @staticmethod
