@@ -54,14 +54,9 @@ class KerasJob(Job):
         config = config or self.exp_config["loader_config"]
         loader = get_data_loader(**config)
         if self.exp_config["run_config"]["select_few"]:
-            (x_train, y_train), val, (x_test, y_test) = loader.few_examples(
-                **config["load_kwargs"]
-            )
+            data = loader.few_examples(**config["load_kwargs"])
         else:
-            (x_train, y_train), val, (x_test, y_test) = loader.load_data(
-                **config["load_kwargs"]
-            )
-        data = ((x_train, y_train), val, (x_test, y_test))
+            data = loader.load_data(**config["load_kwargs"])
         return loader, data
 
     def _load_fitable(self, loader: DataLoader, fitable_config: dict = None) -> Model:
