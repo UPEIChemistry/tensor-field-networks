@@ -1,22 +1,16 @@
-from copy import copy
 import socket
-from pathlib import Path
-from typing import List, Union, Tuple
+from abc import ABCMeta, abstractmethod
+from copy import copy
+from typing import List
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver, MongoObserver, RunObserver
-from sacred.run import Run
-from tensorflow.keras.callbacks import ReduceLROnPlateau, TensorBoard
-from tensorflow.keras.models import Model
-from kerastuner import Tuner
 
-from ..callbacks import ClassificationMetrics
-from .config_defaults import run_config, loader_config, tb_config, lr_config
-from ..ingredients import data_ingredient, get_data_loader
-from ..loaders import DataLoader
+from tfn.tools.ingredients import builder_ingredient, data_ingredient
+from tfn.tools.jobs import config_defaults as cd
 
 
-class Job(object):
+class Job(metaclass=ABCMeta):
     def __init__(
         self,
         exp_config: dict = None,
@@ -35,19 +29,6 @@ class Job(object):
         self._experiment = None
         self._observers = []
 
-    @staticmethod
-    def set_config_defaults(d: dict, values: dict):
-        for k, v in values.items():
-            d.setdefault(k, v)
-
-    def add_config_defaults(self, ec: dict):
-        for name, conf in self.config_defaults.items():
-            if name in ec:
-                self.set_config_defaults(ec[name], conf)
-            else:
-                ec.setdefault(name, conf)
-        return ec
-
     @property
     def default_observers(self):
         observers = []
@@ -62,6 +43,40 @@ class Job(object):
             FileStorageObserver(self.exp_config.get("storage_dir", "./sacred_storage"))
         )
         return observers
+
+    @property
+    def experiment(self):
+        """
+        Experiment object required for Sacred.
+
+        :return: sacred.Experiment object.
+        """
+        if self._experiment is None:
+            self._experiment = Experiment(
+                name=self.exp_config.get("name"),
+                ingredients=self.exp_config.get("ingredients"),
+            )
+            observers = self._observers or self.default_observers
+            self._experiment.observers.extend(observers)
+            self._experiment.add_config(self.exp_config)
+            if not self.exp_config["run_config"]["capture_output"]:
+                self._experiment.captured_out_filter = (
+                    lambda *args, **kwargs: "Output capturing turned off."
+                )
+        return self._experiment
+
+    @staticmethod
+    def set_config_defaults(d: dict, values: dict):
+        for k, v in values.items():
+            d.setdefault(k, v)
+
+    def add_config_defaults(self, ec: dict):
+        for name, conf in self.config_defaults.items():
+            if name in ec:
+                self.set_config_defaults(ec[name], conf)
+            else:
+                ec.setdefault(name, conf)
+        return ec
 
     def update_observers(self, o: List[RunObserver]):
         """
@@ -80,21 +95,88 @@ class Job(object):
         """
         self._observers = o
 
-    @property
-    def experiment(self):
-        if self._experiment is None:
-            self._experiment = Experiment(
-                name=self.exp_config.get("name"),
-                ingredients=self.exp_config.get("ingredients"),
-            )
-            observers = self._observers or self.default_observers
-            self._experiment.observers.extend(observers)
-            self._experiment.add_config(self.exp_config)
-            if not self.exp_config["run_config"]["capture_output"]:
-                self._experiment.captured_out_filter = (
-                    lambda *args, **kwargs: "Output capturing turned off."
-                )
-        return self._experiment
+    @abstractmethod
+    def _main(self, run, fitable, fitable_config, loader_config):
+        """
+        Private method containing the actual work completed by the job. Implemented is a default
+        workflow for a basic keras/kerastuner type job.
+
+        :param run: sacred.Run object. See sacred documentation for more details on utility.
+        :param fitable: Optional tensorflow.keras.Model or kerastuner.Tuner object.
+            Model-like which contains a fit method.
+        :param fitable_config: Optional dict. Contains data which can be used to create a new
+            fitable instance.
+        :param loader_config: Optional dict. Contains data which can be used to create a new
+            DataLoader instance.
+        """
+        pass
+
+    def run(self):
+        """
+        Exposed method of the particular job. Runs whatever work is entailed by the job based on
+        the content provided in `self.exp_config`.
+        """
+
+        @self.experiment.main
+        def main(_run):
+            self._main(_run)
+
+        self.experiment.run()
+
+    @abstractmethod
+    def _load_data(self, config):
+        """
+        Obtains a loader using ingredients.get_loader and self.exp_config['loader_config']
+
+        :return: Loader object and the data returned by that Loader's get_data method.
+        """
+        pass
+
+    @abstractmethod
+    def _load_fitable(self, loader, fitable_config):
+        """
+        Defines and compiles a fitable (keras.model or keras_tuner.tuner) which implements
+        a 'fit' method. This method calls either get_builder, or get_hyper_factory, depending on
+        which type of fitable is beind loaded.
+
+        :return: Model or Tuner object.
+        """
+        pass
+
+    @abstractmethod
+    def _fit(self, run, fitable, data, callbacks):
+        """
+
+        :param run: sacred.Run object. See sacred documentation for details on utility.
+        :param fitable: tensorflow.keras.Model object.
+        :param data: tuple. train and validation data in the form (train, val), where train is
+            the tuple (x_train, y_train).
+        :param callbacks: Optional list. List of tensorflow.keras.Callback objects to pass to
+            fitable.fit method.
+        :return: tensorflow.keras.Model object.
+        """
+        pass
+
+    @abstractmethod
+    def _test_fitable(self, run, fitable, test_data):
+        """
+        :param fitable: tensorflow.keras.Model object.
+        :param test_data: tuple. contains (x_test, y_test).
+        :return: float. Scalar test_loss value.
+        """
+        pass
+
+    @abstractmethod
+    def _save_fitable(self, run, fitable):
+        """
+        :param run: sacred.Run object. see sacred documentation for more details on utility.
+        :param fitable: tensorflow.keras.Model object.
+        """
+        pass
+
+    @abstractmethod
+    def _new_model_path(self, i):
+        pass
 
     @property
     def config_defaults(self):
@@ -103,150 +185,11 @@ class Job(object):
 
         :return: dict. Experiment dictionary containing necessary config(s) for the Job.
         """
-        raise NotImplementedError
-
-    def run(self):
-        @self.experiment.main
-        def main(_run):
-            self.main(_run)
-
-        self.experiment.run()
-
-    def main(
-        self,
-        run,
-        fitable: Union[Model, Tuner] = None,
-        loader_config: dict = None,
-        fitable_config: dict = None,
-    ):
-        raise NotImplementedError
-
-    def load_data(self, config: dict = None) -> Tuple[DataLoader, Tuple]:
-        """
-        Obtains a loader using ingredients.get_loader and self.exp_config['loader_config']
-
-        :return: Loader object and the data returned by that Loader's get_data method.
-        """
-        raise NotImplementedError
-
-    def load_fitable(
-        self, loader: DataLoader, fitable_config: dict = None
-    ) -> Union[Model, Tuner]:
-        """
-        Defines and compiles a fitable (keras.model or keras_tuner.tuner) which implements
-        a 'fit' method. This method calls either get_builder, or get_hyper_factory, depending on
-        which type of fitable is beind loaded.
-
-        :return: Model or Tuner object.
-        """
-        raise NotImplementedError
-
-    def fit(self, fitable: Union[Model, Tuner], data: tuple) -> Union[Model, Tuner]:
-        """
-        Fits a provided fitable to some provided data.
-
-        :return: Model or Tuner object fitted to data.
-        """
-        raise NotImplementedError
-
-    def test_fitable(self, fitable: Union[Model, Tuner], test_data: tuple) -> float:
-        """
-        :param fitable: Model or Tuner.
-        :param test_data: tuple. contains x_test & y_test
-        :return: float. Scalar test_loss value.
-        """
-        raise NotImplementedError
-
-    def save_model(self, run: Run, fitable: Union[Model, Tuner]):
-        raise NotImplementedError
-
-
-class DefaultJob(Job):
-    @property
-    def config_defaults(self):
         return {
-            "ingredients": [data_ingredient],
-            "run_config": copy(run_config),
-            "loader_config": copy(loader_config),
-            "tb_config": copy(tb_config),
-            "lr_config": copy(lr_config),
+            "ingredients": [data_ingredient, builder_ingredient],
+            "run_config": copy(cd.run_config),
+            "loader_config": copy(cd.loader_config),
+            "builder_config": copy(cd.builder_config),
+            "tb_config": copy(cd.tb_config),
+            "lr_config": copy(cd.lr_config),
         }
-
-    def main(self, run, fitable=None, loader_config=None, fitable_config=None):
-        loader, data = self.load_data(loader_config)
-        fitable = fitable or self.load_fitable(loader, fitable_config)
-        fitable = self.fit(fitable, data[:-1], run)
-        if self.exp_config["run_config"]["test"]:
-            self.test_fitable(fitable, data[-1], run)
-        if self.exp_config["run_config"]["save_model"]:
-            self.save_model(run, fitable)
-        return fitable
-
-    def load_data(self, config: dict = None) -> Tuple[DataLoader, Tuple]:
-        config = config or self.exp_config["loader_config"]
-        loader = get_data_loader(**config)
-        if self.exp_config["run_config"]["select_few"]:
-            (x_train, y_train), val, (x_test, y_test) = loader.few_examples(
-                **config["load_kwargs"]
-            )
-        else:
-            (x_train, y_train), val, (x_test, y_test) = loader.load_data(
-                **config["load_kwargs"]
-            )
-        data = ((x_train, y_train), val, (x_test, y_test))
-        return loader, data
-
-    def load_fitable(
-        self, loader: DataLoader, fitable_config: dict = None
-    ) -> Union[Model, Tuner]:
-        raise NotImplementedError
-
-    def fit(
-        self, fitable: Union[Model, Tuner], data: tuple, run: Run = None
-    ) -> Union[Model, Tuner]:
-        (x_train, y_train), val = data
-        logdir = run.observers[0].dir + "/logs"
-        callbacks = [
-            TensorBoard(**dict(**self.exp_config["tb_config"], log_dir=logdir)),
-            ReduceLROnPlateau(**self.exp_config["lr_config"]),
-        ]
-        if self.exp_config["builder_config"]["builder_type"] in [
-            "siamese_builder",
-            "classifier_builder",
-        ]:
-            callbacks.append(ClassificationMetrics(val, logdir))
-        kwargs = dict(
-            x=x_train,
-            y=y_train,
-            epochs=self.exp_config["run_config"]["epochs"],
-            batch_size=self.exp_config["run_config"]["batch_size"],
-            validation_data=val,
-            class_weight=self.exp_config["run_config"]["class_weight"],
-            callbacks=callbacks,
-            verbose=self.exp_config["run_config"]["fit_verbosity"],
-        )
-        fitable.fit(**kwargs)
-        try:
-            pass
-        except AttributeError as e:
-            try:
-                fitable.search(**kwargs)
-            except AttributeError:
-                raise ValueError(
-                    "Param 'fitable' does not have a fit or a search method. Ensure"
-                    "fitable is either of type 'Model' or 'Tuner'"
-                )
-        return fitable
-
-    def test_fitable(self, fitable: Union[Model, Tuner], test_data: tuple) -> float:
-        raise NotImplementedError
-
-    def save_model(self, run: Run, fitable: Union[Model, Tuner]):
-        raise NotImplementedError
-
-    def new_model_path(self, i):
-        model_path = Path(
-            self.exp_config["run_config"]["model_path"]
-        ).parent / "source_model_{}.h5".format(i)
-        self.exp_config["run_config"]["model_path"] = model_path
-        return model_path

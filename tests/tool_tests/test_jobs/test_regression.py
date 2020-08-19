@@ -1,17 +1,17 @@
 from tensorflow.keras.models import load_model
 
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import Regression, StructurePrediction
 
 
 class TestScalarModels:
     def test_defaults(self, run_config, builder_config):
-        job = SingleModel(
+        job = Regression(
             {"name": "test", "run_config": run_config, "builder_config": builder_config}
         )
         job.run()
 
     def test_non_residual(self, run_config, builder_config):
-        job = SingleModel(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -21,7 +21,7 @@ class TestScalarModels:
         job.run()
 
     def test_sum_points(self, run_config, builder_config):
-        job = SingleModel(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -31,7 +31,7 @@ class TestScalarModels:
         job.run()
 
     def test_cosine_basis(self, run_config, builder_config):
-        job = SingleModel(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -41,7 +41,7 @@ class TestScalarModels:
         job.run()
 
     def test_single_dense_radial(self, run_config, builder_config):
-        job = SingleModel(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -68,7 +68,7 @@ class TestScalarModels:
     def test_default_loads_graphly(self, run_config, builder_config, model):
         run_config["run_eagerly"] = False
         builder_config["dynamic"] = False
-        job = SingleModel(
+        job = Regression(
             {"name": "test", "run_config": run_config, "builder_config": builder_config}
         )
         job.run()
@@ -78,7 +78,7 @@ class TestScalarModels:
     def test_default_loads_eagerly(self, run_config, builder_config, model):
         run_config["run_eagerly"] = True
         builder_config["dynamic"] = True
-        job = SingleModel(
+        job = Regression(
             {"name": "test", "run_config": run_config, "builder_config": builder_config}
         )
         job.run()
@@ -89,7 +89,7 @@ class TestScalarModels:
 class TestDualModels:
     def test_iso17(self, run_config, builder_config):
         loader_config = {"loader_type": "iso17_loader"}
-        job = SingleModel(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -101,7 +101,7 @@ class TestDualModels:
 
     def test_sn2(self, run_config, builder_config):
         loader_config = {"loader_type": "sn2_loader"}
-        job = SingleModel(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -118,7 +118,7 @@ class TestVectorModels:
             "loader_type": "ts_loader",
             "load_kwargs": {"output_distance_matrix": True},
         }
-        job = SingleModel(
+        job = StructurePrediction(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -136,7 +136,7 @@ class TestVectorModels:
         }
         run_config["test"] = True
         run_config["write_test_results"] = True
-        job = SingleModel(
+        job = StructurePrediction(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -156,7 +156,7 @@ class TestVectorModels:
             "loader_type": "qm9_loader",
             "load_kwargs": {"modify_structures": True},
         }
-        job = SingleModel(
+        job = StructurePrediction(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -171,7 +171,7 @@ class TestVectorModels:
             "loader_type": "ts_loader",
             "load_kwargs": {"output_distance_matrix": False},
         }
-        job = SingleModel(
+        job = StructurePrediction(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -180,42 +180,6 @@ class TestVectorModels:
                     **builder_config,
                     builder_type="ts_builder",
                     output_distance_matrix=False
-                ),
-            }
-        )
-        job.run()
-
-
-class TestClassifiers:
-    def test_siamese_network(self, run_config, builder_config):
-        loader_config = {
-            "loader_type": "ts_loader",
-            "load_kwargs": {"output_type": "siamese"},
-        }
-        job = SingleModel(
-            {
-                "name": "test",
-                "run_config": run_config,
-                "loader_config": loader_config,
-                "builder_config": dict(
-                    **builder_config, builder_type="siamese_builder"
-                ),
-            }
-        )
-        job.run()
-
-    def test_basic_classifier(self, run_config, builder_config):
-        loader_config = {
-            "loader_type": "ts_loader",
-            "load_kwargs": {"output_type": "classifier"},
-        }
-        job = SingleModel(
-            {
-                "name": "test",
-                "run_config": run_config,
-                "loader_config": loader_config,
-                "builder_config": dict(
-                    **builder_config, builder_type="classifier_builder"
                 ),
             }
         )
