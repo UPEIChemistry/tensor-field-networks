@@ -6,7 +6,7 @@ run_config = {  # Defines kwargs used when running a job
     "storage_dir": "./sacred_storage",
     "model_path": "./model.hdf5",
     "epochs": 100,
-    "batch_size": 32,
+    "batch_size": 16,
     "test": True,
     "write_test_results": False,
     "save_model": True,
@@ -21,11 +21,12 @@ run_config = {  # Defines kwargs used when running a job
     "capture_output": True,
     "num_models_to_test": 1,
     "fit_verbosity": 2,
+    "save_verbosity": 0,
 }
 loader_config = {  # Passed directly to loader classes
     "loader_type": "qm9_loader",
     "map_points": True,
-    "splitting": "85:10:5",
+    "splitting": "70:20:10",
     "pre_load": False,
     "load_kwargs": {"cache": True},
 }

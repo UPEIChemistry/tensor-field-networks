@@ -36,7 +36,7 @@ class KerasJob(Job):
         """
         loader, data = self._load_data(loader_config)
         fitable = fitable or self._load_fitable(loader, fitable_config)
-        fitable = self._fit(run, fitable, data[:-1])
+        fitable = self._fit(run, fitable, data)
         if self.exp_config["run_config"]["test"]:
             self._test_fitable(run, fitable, data[-1])
         if self.exp_config["run_config"]["save_model"]:
@@ -101,14 +101,15 @@ class KerasJob(Job):
 
         :param run: sacred.Run object. See sacred documentation for details on utility.
         :param fitable: tensorflow.keras.Model object.
-        :param data: tuple. train and validation data in the form (train, val), where train is
+        :param data: tuple. train, validation, and test data in the form (train, val, test),
+        where train is
             the tuple (x_train, y_train).
         :param callbacks: Optional list. List of tensorflow.keras.Callback objects to pass to
             fitable.fit method.
         :return: tensorflow.keras.Model object.
         """
         tensorboard_directory = run.observers[0].dir + "/logs"
-        (x_train, y_train), val = data
+        (x_train, y_train), val, _ = data
         callbacks = callbacks or []
         callbacks.extend(
             [
@@ -150,7 +151,8 @@ class KerasJob(Job):
         :param fitable: tensorflow.keras.Model object.
         """
         path = self.exp_config["run_config"]["model_path"]
-        fitable.summary()
+        if self.exp_config["run_config"]["save_verbosity"] > 0:
+            fitable.summary()
         fitable.save(self.exp_config["run_config"]["model_path"])
         run.add_artifact(path)
 
