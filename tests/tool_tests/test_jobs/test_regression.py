@@ -113,50 +113,12 @@ class TestDualModels:
 
 
 class TestVectorModels:
-    def test_ts(self, run_config, builder_config):
+    def test_distance_matrix(self, run_config, builder_config):
         loader_config = {
             "loader_type": "ts_loader",
             "load_kwargs": {"output_distance_matrix": True},
         }
-        job = StructurePrediction(
-            {
-                "name": "test",
-                "run_config": run_config,
-                "loader_config": loader_config,
-                "builder_config": dict(**builder_config, builder_type="ts_builder"),
-            }
-        )
-        job.run()
-
-    def test_write_output_xyz(self, run_config, builder_config):
-        loader_config = {
-            "loader_type": "ts_loader",
-            "map_points": False,
-            "load_kwargs": {"output_distance_matrix": False},
-        }
-        run_config["test"] = True
-        run_config["write_test_results"] = True
-        job = StructurePrediction(
-            {
-                "name": "test",
-                "run_config": run_config,
-                "loader_config": loader_config,
-                "builder_config": dict(
-                    **builder_config,
-                    builder_type="ts_builder",
-                    output_distance_matrix=False
-                ),
-            }
-        )
-        job.run()
-        assert True
-
-    def test_modified_qm9(self, run_config, builder_config):
-        loader_config = {
-            "loader_type": "qm9_loader",
-            "load_kwargs": {"modify_structures": True},
-        }
-        job = StructurePrediction(
+        job = Regression(
             {
                 "name": "test",
                 "run_config": run_config,
@@ -181,6 +143,21 @@ class TestVectorModels:
                     builder_type="ts_builder",
                     output_distance_matrix=False
                 ),
+            }
+        )
+        job.run()
+
+    def test_modified_qm9(self, run_config, builder_config):
+        loader_config = {
+            "loader_type": "qm9_loader",
+            "load_kwargs": {"modify_structures": True},
+        }
+        job = Regression(
+            {
+                "name": "test",
+                "run_config": run_config,
+                "loader_config": loader_config,
+                "builder_config": dict(**builder_config, builder_type="ts_builder"),
             }
         )
         job.run()

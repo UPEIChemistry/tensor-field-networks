@@ -1,8 +1,13 @@
 """
 Package containing Tensorfield Network tf.keras layers built using TF 2.0
 """
+import logging
+import os
 
-__version__ = "2.0.0"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
+
+__version__ = "2.1.0"
 __author__ = "Riley Jackson"
 __email__ = "rjjackson@upei.ca"
 __description__ = (
