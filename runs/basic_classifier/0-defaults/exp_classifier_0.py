@@ -1,7 +1,7 @@
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import Classification
 
 
-job = SingleModel(
+job = Classification(
     exp_config={
         "name": "BASIC CLASSIFIER ON TS DATASET EXPERIMENT 0",
         "notes": "Using all defaults",

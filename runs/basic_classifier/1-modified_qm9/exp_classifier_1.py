@@ -1,7 +1,7 @@
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import Classification
 
 
-job = SingleModel(
+job = Classification(
     exp_config={
         "name": "BASIC CLASSIFIER ON MODIFIED QM9 DATASET",
         "notes": "Using all defaults",

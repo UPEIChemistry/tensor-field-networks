@@ -1,6 +1,6 @@
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import StructurePrediction
 
-job = SingleModel(
+job = StructurePrediction(
     exp_config={
         "name": "QM9 E PREDICTION USING DEFAULT ENERGY MODEL",
         "notes": "Using all defaults",

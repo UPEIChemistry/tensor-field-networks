@@ -1,6 +1,6 @@
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import Regression
 
-job = SingleModel(
+job = Regression(
     exp_config={
         "name": "QM9 E PREDICTION USING DEFAULT ENERGY MODEL",
         "notes": "Using all defaults",

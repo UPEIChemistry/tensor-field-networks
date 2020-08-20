@@ -1,6 +1,6 @@
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import StructurePrediction
 
-job = SingleModel(
+job = StructurePrediction(
     exp_config={
         "name": "DEFAULT TS MODEL ON TS DATASET",
         "notes": "Train on only distance matrix",

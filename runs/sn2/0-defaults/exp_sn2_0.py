@@ -1,6 +1,6 @@
-from tfn.tools.jobs import SingleModel
+from tfn.tools.jobs import Regression
 
-job = SingleModel(
+job = Regression(
     exp_config={
         "name": "SN2 E/F PREDICTION USING DEFAULT FORCE MODEL",
         "notes": "Default architectures for both model and radials.",
