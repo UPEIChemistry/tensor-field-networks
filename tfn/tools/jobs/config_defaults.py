@@ -12,7 +12,7 @@ run_config = {  # Defines kwargs used when running a job
     "save_model": True,
     "use_strategy": False,
     "loss": "mae",
-    "optimizer_kwargs": {"learning_rate": 0.001},
+    "optimizer": "adam",
     "loss_weights": None,
     "class_weight": None,
     "metrics": None,

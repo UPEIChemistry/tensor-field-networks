@@ -80,7 +80,7 @@ class KerasJob(Job):
         compile_kwargs = dict(
             loss=run_config["loss"],
             loss_weights=run_config["loss_weights"],
-            optimizer=tf.keras.optimizers.Adam(**run_config["optimizer_kwargs"]),
+            optimizer=run_config["optimizer"],
             metrics=run_config["metrics"],
             run_eagerly=run_config["run_eagerly"],
         )
