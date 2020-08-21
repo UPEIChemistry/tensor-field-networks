@@ -6,7 +6,7 @@ class TestCrossValidation:
         loader_config = {
             "loader_type": "ts_loader",
             "splitting": 5,
-            "load_kwargs": {"output_distance_matrix": False},
+            "load_kwargs": {"output_distance_matrix": True},
         }
         job = CrossValidate(
             {
@@ -15,8 +15,9 @@ class TestCrossValidation:
                 "loader_config": loader_config,
                 "builder_config": dict(
                     **builder_config,
-                    builder_type="ts_builder",
-                    output_distance_matrix=False
+                    builder_type="cartesian_builder",
+                    prediction_type="vectors",
+                    output_type="distance_matrix"
                 ),
             }
         )

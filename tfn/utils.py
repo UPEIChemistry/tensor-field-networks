@@ -48,3 +48,13 @@ def rotation_matrix(axis_matrix=None, theta=math.pi / 2):
 def shifted_softplus(x):
     y = tf.where(x < 14.0, tf.math.softplus(tf.where(x < 14.0, x, tf.zeros_like(x))), x)
     return y - tf.math.log(2.0)
+
+
+def cumulative_loss(y_pred, y_true):
+    if y_pred.shape != y_true.shape:
+        raise ValueError(
+            f"shape mismatch between y_pred: {y_pred.shape} and y_true: "
+            f"{y_true.shape}"
+        )
+    loss = tf.abs(y_pred - y_true)  # (batch, points, axis_2)
+    return tf.reduce_sum(tf.reduce_sum(loss, axis=-1), axis=-1)  # (batch, )

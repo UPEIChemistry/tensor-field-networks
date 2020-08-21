@@ -26,7 +26,7 @@ run_config = {  # Defines kwargs used when running a job
 loader_config = {  # Passed directly to loader classes
     "loader_type": "qm9_loader",
     "map_points": True,
-    "splitting": "70:20:10",
+    "splitting": "75:15:10",
     "pre_load": False,
     "load_kwargs": {"cache": True},
 }

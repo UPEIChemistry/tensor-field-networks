@@ -101,8 +101,8 @@ class ISO17DataLoader(DataLoader):
 
         # Remapping
         if self.map_points:
-            [self.remap_points(d[1]) for d in data.values()]
-        self._max_z = np.max(data[dataset_name][1]) + 1
+            [self.remap_points(d[0]) for d in data.values()]
+        self._max_z = np.max(data[dataset_name][0]) + 1
         if kwargs.get("return_maxz", False):
             return
 
@@ -114,13 +114,13 @@ class ISO17DataLoader(DataLoader):
         self.splitting = re.search(r"\d{1,2}:\d{1,2}", self.splitting).group(0)
         self.data = self.three_way_split(
             data=[data[dataset_name][:2], data[dataset_name][2:]],
-            length=len(data[dataset_name][1]),
+            length=len(data[dataset_name][0]),
         )
         self.splitting = None
         self.data.extend(
             self.three_way_split(
                 data=[data[test_name][:2], data[test_name][2:]],
-                length=len(data[dataset_name][1]),
+                length=len(data[dataset_name][0]),
             )
         )
         return self.data

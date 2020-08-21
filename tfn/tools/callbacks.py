@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.models import Model
 from tensorflow.keras.metrics import categorical_accuracy
+from tensorflow.keras.losses import get as get_loss
 
 from .converters import ndarrays_to_xyz
 
@@ -56,24 +57,39 @@ class WriteCartesians(Callback):
         self.file_writer = tf.summary.create_file_writer(str(logdir / "metrics"))
         self.file_writer.set_as_default()
 
+        self._prediction_type = "vectors"
+        self._output_type = "cartesians"
+
     def get_vectors(self, inputs):
         model = Model(
-            inputs=self.model.input,
-            outputs=[
-                self.model.get_layer("averaged_midpoint").output,
-                self.model.get_layer("ts_vectors").output,
-            ],
+            inputs=self.model.input, outputs=self.model.get_layer("vectors").output,
         )
-        midpoint, vectors = model.predict([np.expand_dims(a, axis=0) for a in inputs])
-        return [np.squeeze(a, axis=0) for a in (midpoint, vectors)]
+        vectors = model.predict([np.expand_dims(a, axis=0) for a in inputs])
+        return np.squeeze(vectors, axis=0)
+
+    @staticmethod
+    def write_vectors(vectors, path, i):
+        vector_path = path / "vectors"
+        os.makedirs(vector_path, exist_ok=True)
+        np.savetxt(vector_path / f"{i}_vectors.txt", vectors)  # Write vectors .txt file
+
+    def _get_prediction(self, x):
+        if self._output_type == "distance_matrix":
+            model = Model(
+                inputs=self.model.input,
+                outputs=self.model.get_layer("cartesians").output,
+            )
+        else:
+            model = self.model
+        return model.predict(x)
 
     def _unwrap_data_lazily(self, data: list):
         """
-
-        :param data:
-        :return:
+        :param data: data in format (x, y) where x is [atomic_nums, reactants, products] and y is
+            [ts_cartesians].
+        :return: i, z, r, p, ts_true, ts_pred
         """
-        predicted_transition_states = self.model.predict(data[0])
+        predicted_transition_states = self._get_prediction(data[0])
         ((atomic_nums, reactants, products), (true_transition_states,),) = data
         for i, (z, r, p, ts_true, ts_pred) in enumerate(
             zip(
@@ -86,9 +102,11 @@ class WriteCartesians(Callback):
         ):
             yield i, z, r, p, ts_true, ts_pred
 
-    @staticmethod
-    def mae(x, y):
-        return np.mean(np.abs(x - y))
+    def loss(self, a, b):
+        if a.shape != b.shape:
+            return 0
+        else:
+            return np.mean(get_loss(self.model.loss)(a, b))
 
     def write_cartesians(self, data: list, path: Path):
         """
@@ -96,32 +114,46 @@ class WriteCartesians(Callback):
         :param path: Path object. Base path subdirectories and .xyz files will be written under.
         """
         for i, z, r, p, ts, pred in self._unwrap_data_lazily(data):
-            # Write vectors
-            m, vectors = self.get_vectors([z, r, p])
-            vector_path = path / "vectors"
-            os.makedirs(vector_path, exist_ok=True)
-            np.savetxt(  # Write vectors .txt file
-                vector_path / f"{i}_vectors.txt", vectors
-            )
+            if self._prediction_type == "vectors":
+                # Write vectors
+                vectors = self.get_vectors([z, r, p])
+                self.write_vectors(vectors, path, i)
+            else:
+                vectors = [0.0, 0.0]
+
+            m = (r + p) / 2
             pred_message = (
-                f"mae: {self.mae(pred, ts)}  "
+                f"mae: {self.loss(pred, ts)}  "
                 f"-- largest vector component: {np.max(vectors)} "
                 f"-- smallest vector component {np.min(vectors)}"
             )
             # Write files
-            ndarrays_to_xyz(ts, z, path / f"true/{i}_true.xyz", f"{self.mae(ts, ts)}")
+            if self._output_type != "distance_matrix":
+                ndarrays_to_xyz(
+                    ts, z, path / f"true/{i}_true.xyz", f"{self.loss(ts, ts)}"
+                )
             ndarrays_to_xyz(
                 pred, z, path / f"predicted/{i}_pred.xyz", pred_message,
             )
             ndarrays_to_xyz(
-                m, z, path / f"midpoints/{i}_midpoint.xyz", f"{self.mae(m, ts)}",
+                m, z, path / f"midpoints/{i}_midpoint.xyz", f"{self.loss(m, ts)}",
             )
             ndarrays_to_xyz(
-                r, z, path / f"reactants/{i}_reactant.xyz", f"{self.mae(r, ts)}"
+                r, z, path / f"reactants/{i}_reactant.xyz", f"{self.loss(r, ts)}"
             )
             ndarrays_to_xyz(
-                p, z, path / f"products/{i}_product.xyz", f"{self.mae(p, ts)}"
+                p, z, path / f"products/{i}_product.xyz", f"{self.loss(p, ts)}"
             )
+
+    def on_train_begin(self, logs=None):
+        data = self.validation or self.test
+        if data is None:
+            return
+        else:
+            if data[1][-1].shape[-1] != 3:
+                self._output_type = "distance_matrix"
+            if "vectors" not in [layer.name for layer in self.model.layers]:
+                self._prediction_type = "cartesians"
 
     def on_epoch_end(self, epoch, logs=None):
         if self.validation is None:
@@ -129,7 +161,8 @@ class WriteCartesians(Callback):
         else:
             if epoch % self.write_rate == 0:
                 (z, r, p), (ts,) = self.validation
-                midpoint_loss = self.mae((r + p) / 2, ts)
+                midpoint_loss = self.loss((r + p) / 2, ts)
+                print(f"midpoint val loss: {midpoint_loss}")
                 tf.summary.scalar("val_midpoint_loss", midpoint_loss, epoch)
                 self.write_cartesians(self.validation, self.path / f"epoch_{epoch}")
 
@@ -138,7 +171,7 @@ class WriteCartesians(Callback):
             return
         else:
             (z, r, p), (ts,) = self.validation
-            midpoint_loss = self.mae((r + p) / 2, ts)
+            midpoint_loss = self.loss((r + p) / 2, ts)
             print(f"midpoint test loss: {midpoint_loss}")
             self.write_cartesians(self.test, self.path / "test")
 

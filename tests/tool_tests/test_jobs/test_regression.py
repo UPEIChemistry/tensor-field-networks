@@ -4,7 +4,7 @@ from tfn.tools.jobs import Regression, StructurePrediction
 
 
 class TestScalarModels:
-    def test_defaults(self, run_config, builder_config):
+    def test_qm9(self, run_config, builder_config):
         job = Regression(
             {"name": "test", "run_config": run_config, "builder_config": builder_config}
         )
@@ -112,23 +112,32 @@ class TestDualModels:
         job.run()
 
 
-class TestVectorModels:
-    def test_distance_matrix(self, run_config, builder_config):
+class TestCartesianModels:
+    def test_cumulative_loss_cartesian_prediction_distance_matrix_output(
+        self, run_config, builder_config
+    ):
         loader_config = {
             "loader_type": "ts_loader",
             "load_kwargs": {"output_distance_matrix": True},
         }
-        job = Regression(
+        job = StructurePrediction(
             {
                 "name": "test",
-                "run_config": run_config,
+                "run_config": dict(
+                    **run_config, loss="cumulative_loss", optimizer="sgd"
+                ),
                 "loader_config": loader_config,
-                "builder_config": dict(**builder_config, builder_type="ts_builder"),
+                "builder_config": dict(
+                    **builder_config,
+                    builder_type="cartesian_builder",
+                    prediction_type="cartesians",
+                    output_type="distance_matrix"
+                ),
             }
         )
         job.run()
 
-    def test_cartesian(self, run_config, builder_config):
+    def test_vector_prediction_cartesian_output(self, run_config, builder_config):
         loader_config = {
             "loader_type": "ts_loader",
             "load_kwargs": {"output_distance_matrix": False},
@@ -140,14 +149,79 @@ class TestVectorModels:
                 "loader_config": loader_config,
                 "builder_config": dict(
                     **builder_config,
-                    builder_type="ts_builder",
-                    output_distance_matrix=False
+                    builder_type="cartesian_builder",
+                    prediction_type="vectors",
+                    output_type="cartesians"
                 ),
             }
         )
         job.run()
 
-    def test_modified_qm9(self, run_config, builder_config):
+    def test_vector_prediction_distance_matrix_output(self, run_config, builder_config):
+        loader_config = {
+            "loader_type": "ts_loader",
+            "load_kwargs": {"output_distance_matrix": True},
+        }
+        job = StructurePrediction(
+            {
+                "name": "test",
+                "run_config": run_config,
+                "loader_config": loader_config,
+                "builder_config": dict(
+                    **builder_config,
+                    builder_type="cartesian_builder",
+                    prediction_type="vectors",
+                    output_type="distance_matrix"
+                ),
+            }
+        )
+        job.run()
+
+    def test_cartesian_prediction_cartesian_output(self, run_config, builder_config):
+        loader_config = {
+            "loader_type": "ts_loader",
+            "load_kwargs": {"output_distance_matrix": False},
+        }
+        job = StructurePrediction(
+            {
+                "name": "test",
+                "run_config": run_config,
+                "loader_config": loader_config,
+                "builder_config": dict(
+                    **builder_config,
+                    builder_type="cartesian_builder",
+                    prediction_type="cartesians",
+                    output_type="cartesians"
+                ),
+            }
+        )
+        job.run()
+
+    def test_cartesian_prediction_distance_matrix_output(
+        self, run_config, builder_config
+    ):
+        loader_config = {
+            "loader_type": "ts_loader",
+            "load_kwargs": {"output_distance_matrix": True},
+        }
+        job = StructurePrediction(
+            {
+                "name": "test",
+                "run_config": run_config,
+                "loader_config": loader_config,
+                "builder_config": dict(
+                    **builder_config,
+                    builder_type="cartesian_builder",
+                    prediction_type="cartesians",
+                    output_type="distance_matrix"
+                ),
+            }
+        )
+        job.run()
+
+    def test_modified_qm9_vector_prediction_cartesian_output(
+        self, run_config, builder_config
+    ):
         loader_config = {
             "loader_type": "qm9_loader",
             "load_kwargs": {"modify_structures": True},
@@ -157,7 +231,9 @@ class TestVectorModels:
                 "name": "test",
                 "run_config": run_config,
                 "loader_config": loader_config,
-                "builder_config": dict(**builder_config, builder_type="ts_builder"),
+                "builder_config": dict(
+                    **builder_config, builder_type="cartesian_builder"
+                ),
             }
         )
         job.run()

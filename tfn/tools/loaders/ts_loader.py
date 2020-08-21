@@ -1,8 +1,9 @@
 from h5py import File
 import numpy as np
 
-from atomic_images.np_layers import DistanceMatrix
+from tfn.layers.atomic_images import OneHot
 
+from ...layers.utility_layers import MaskedDistanceMatrix
 from . import DataLoader
 
 
@@ -131,7 +132,11 @@ class TSLoader(DataLoader):
                 else cartesians["product"],
             ]
             y = [
-                DistanceMatrix()(cartesians["ts"])
+                np.array(
+                    MaskedDistanceMatrix()(
+                        [OneHot(self.max_z)(atomic_nums), cartesians["ts"]]
+                    )
+                )
                 if kwargs.get("output_distance_matrix", False)
                 else cartesians["ts"],
                 energies["ts"],

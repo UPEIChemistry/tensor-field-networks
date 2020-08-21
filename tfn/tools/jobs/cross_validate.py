@@ -14,20 +14,20 @@ class CrossValidate(KerasJob):
         loader_config: dict = None,
     ):
         # folds: (((x1, x2, ...), (y1, y2, ...)), ...)
-        loader, folds = self._load_data(loader_config)
-        fitable = fitable or self._load_fitable(loader, fitable_config)
         train_loss = []
         val_loss = []
+        loader, folds = self._load_data(loader_config)
         print(f"**CROSS VALIDATING WITH {len(folds)} FOLDS**")
         for i in range(len(folds)):
             print(f"CROSS VALIDATING USING FOLD {i} AS VAL FOLD...")
             val = folds[i]
             train = self._combine_folds(folds[:i] + folds[i + 1 :])
-            data = (train, val)
+            data = (train, val, None)  # No testing data
             self.exp_config["run_config"]["fit_verbosity"] = 0  # keep fitting quiet
+            fitable = self._load_fitable(loader, fitable_config)
             fitable = self._fit(run, fitable, data)
-            train_loss.append(fitable.evaluate(*train))
-            val_loss.append(fitable.evaluate(*val))
+            train_loss.append(fitable.evaluate(*train, verbose=2))
+            val_loss.append(fitable.evaluate(*val, verbose=2))
             if self.exp_config["run_config"]["save_model"]:
                 self.exp_config["run_config"][
                     "save_verbosity"

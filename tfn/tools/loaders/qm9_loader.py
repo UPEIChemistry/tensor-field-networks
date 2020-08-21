@@ -1,7 +1,9 @@
 import h5py
 import numpy as np
-from atomic_images.np_layers import DistanceMatrix
 
+from tfn.layers.atomic_images import OneHot
+
+from ...layers.utility_layers import MaskedDistanceMatrix
 from .data_loader import DataLoader
 
 
@@ -78,8 +80,10 @@ class QM9DataDataLoader(DataLoader):
             else:
                 x = [atomic_nums, forward_cartesians, reverse_cartesians]
                 y = [
-                    DistanceMatrix()(cartesians)
-                    if kwargs.get("output_distance_matrix", True)
+                    MaskedDistanceMatrix()(
+                        [OneHot(self.max_z)(atomic_nums), cartesians]
+                    )
+                    if kwargs.get("output_distance_matrix", False)
                     else cartesians
                 ]
                 length = len(atomic_nums)

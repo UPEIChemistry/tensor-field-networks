@@ -32,10 +32,10 @@ def random_onehot_rbf_vectors():
 
 
 @pytest.fixture(scope="session")
-def random_cartesians_and_z():
+def random_z_and_cartesians():
     r = np.random.rand(2, 1, 3).astype("float32")
     z = np.random.randint(6, size=(2, 1))
-    return r, z
+    return z, r
 
 
 @pytest.fixture(scope="session")

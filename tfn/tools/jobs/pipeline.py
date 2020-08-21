@@ -2,7 +2,7 @@ from copy import copy
 
 from h5py import File
 from tensorflow.keras.models import Model
-from atomic_images.layers import Unstandardization
+from tfn.layers.atomic_images import Unstandardization
 
 from . import KerasJob
 from .config_defaults import pipeline_config, builder_config
