@@ -23,11 +23,16 @@ class CrossValidate(KerasJob):
             val = folds[i]
             train = self._combine_folds(folds[:i] + folds[i + 1 :])
             data = (train, val, None)  # No testing data
-            self.exp_config["run_config"]["fit_verbosity"] = 0  # keep fitting quiet
             fitable = self._load_fitable(loader, fitable_config)
             fitable = self._fit(run, fitable, data)
-            train_loss.append(fitable.evaluate(*train, verbose=2))
-            val_loss.append(fitable.evaluate(*val, verbose=2))
+
+            loss = fitable.evaluate(*train, verbose=0)
+            print(f"final train loss for fold {i}: {loss}")
+            train_loss.append(loss)
+            loss = fitable.evaluate(*val, verbose=0)
+            print(f"final val loss for fold {i}: {loss}")
+            val_loss.append(loss)
+
             if self.exp_config["run_config"]["save_model"]:
                 self.exp_config["run_config"][
                     "save_verbosity"

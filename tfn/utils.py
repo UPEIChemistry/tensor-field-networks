@@ -51,7 +51,7 @@ def shifted_softplus(x):
 
 
 def cumulative_loss(y_pred, y_true):
-    if y_pred.shape != y_true.shape:
+    if y_pred.shape[1:] != y_true.shape[1:]:
         raise ValueError(
             f"shape mismatch between y_pred: {y_pred.shape} and y_true: "
             f"{y_true.shape}"
