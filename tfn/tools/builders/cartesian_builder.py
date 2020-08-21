@@ -65,7 +65,7 @@ class DualTrunkBuilder(Builder):
         raise NotImplementedError
 
 
-class TSBuilder(DualTrunkBuilder):
+class CartesianBuilder(DualTrunkBuilder):
     def __init__(self, *args, **kwargs):
         self.output_distance_matrix = kwargs.pop("output_distance_matrix", True)
         super().__init__(*args, **kwargs)
@@ -123,7 +123,7 @@ class ClassifierMixIn(object):
         return output
 
 
-class TSSiameseClassifierBuilder(DualTrunkBuilder, ClassifierMixIn):
+class SiameseBuilder(DualTrunkBuilder, ClassifierMixIn):
     def get_inputs(self):
         return [
             Input([2, self.num_points,], name="atomic_nums", dtype="int32"),
@@ -146,7 +146,7 @@ class TSSiameseClassifierBuilder(DualTrunkBuilder, ClassifierMixIn):
         return self.average_votes(output)
 
 
-class TSClassifierBuilder(Builder, ClassifierMixIn):
+class ClassifierBuilder(Builder, ClassifierMixIn):
     def get_inputs(self):
         return [
             Input([self.num_points,], name="atomic_nums", dtype="int32"),

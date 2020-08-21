@@ -94,8 +94,8 @@ class Builder(object):
 
     def get_inputs(self):
         return [
-            Input([self.num_points, 3], dtype="float32", name="cartesians"),
             Input([self.num_points,], dtype="int32", name="atomic_nums"),
+            Input([self.num_points, 3], dtype="float32", name="cartesians"),
         ]
 
     def get_layers(self, **kwargs):

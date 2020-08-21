@@ -5,9 +5,9 @@ from sacred import Ingredient
 from .builders import (
     EnergyBuilder,
     ForceBuilder,
-    TSBuilder,
-    TSSiameseClassifierBuilder,
-    TSClassifierBuilder,
+    CartesianBuilder,
+    SiameseBuilder,
+    ClassifierBuilder,
 )
 from .loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader
 from .loggers import SacredMetricLogger
@@ -72,12 +72,12 @@ def get_builder(
         return EnergyBuilder(**kwargs)
     elif builder_type == "force_builder":
         return ForceBuilder(**kwargs)
-    elif builder_type == "ts_builder":
-        return TSBuilder(**kwargs)
+    elif builder_type == "cartesian_builder":
+        return CartesianBuilder(**kwargs)
     elif builder_type == "siamese_builder":
-        return TSSiameseClassifierBuilder(**kwargs)
+        return SiameseBuilder(**kwargs)
     elif builder_type == "classifier_builder":
-        return TSClassifierBuilder(**kwargs)
+        return ClassifierBuilder(**kwargs)
     else:
         raise ValueError(
             "arg `builder_type` had value: {} which is not supported. Check "

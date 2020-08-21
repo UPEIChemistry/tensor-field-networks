@@ -58,6 +58,6 @@ class SN2Loader(DataLoader):
         self._force_mu = np.mean(forces)
         self._force_sigma = np.std(forces)
 
-        self.data = [[cartesians, atomic_nums], [energies, forces]]
+        self.data = [[atomic_nums, cartesians], [energies, forces]]
         self.dataset_length = len(atomic_nums)
         return super().load_data()

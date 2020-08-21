@@ -85,7 +85,7 @@ class QM9DataDataLoader(DataLoader):
                 length = len(atomic_nums)
 
         else:
-            x = [cartesians, atomic_nums]
+            x = [atomic_nums, cartesians]
             y = [energies]
             length = len(atomic_nums)
 

@@ -95,9 +95,9 @@ class ISO17DataLoader(DataLoader):
                 )
 
                 if self.use_energies:
-                    l.extend([positions, atomic_nums, energies, forces])
+                    l.extend([atomic_nums, positions, energies, forces])
                 else:
-                    l.extend([positions, atomic_nums, forces])
+                    l.extend([atomic_nums, positions, forces])
 
         # Remapping
         if self.map_points:

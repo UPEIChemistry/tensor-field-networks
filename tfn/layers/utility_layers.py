@@ -58,7 +58,7 @@ class Preprocessing(Layer):
         self.unit_vectors = UnitVectors(self.sum_points)
 
     def call(self, inputs, **kwargs):
-        r, z = inputs
+        z, r = inputs
         dist_matrix = self.distance_matrix(r)
         #  (batch, points, points, basis_functions)
         rbf = self.cutoff([dist_matrix, self.basis_function(dist_matrix)])
@@ -74,7 +74,7 @@ class Preprocessing(Layer):
         return {**base, **updates}
 
     def compute_output_shape(self, input_shape):
-        r, _ = input_shape
+        _, r = input_shape
         batch, points, _ = r
         return [
             tf.TensorShape([batch, points, self.max_z]),
