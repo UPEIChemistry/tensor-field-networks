@@ -1,13 +1,14 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 
-from atomic_images.layers import (
+from .atomic_images import (
     OneHot,
+    DistanceMatrix,
     CosineBasis,
     ShiftedCosineBasis,
     CosineCutoff,
     GaussianBasis,
-    DistanceMatrix,
+    DummyAtomMasking,
 )
 
 from .. import utils
@@ -54,19 +55,20 @@ class Preprocessing(Layer):
             basis_function = GaussianBasis(**self.basis_config)
         self.basis_function = basis_function
         self.cutoff = CosineCutoff(cutoff=kwargs.pop("cutoff", 15.0))
-        self.distance_matrix = DistanceMatrix()
+        self.distance_matrix = MaskedDistanceMatrix()
         self.unit_vectors = UnitVectors(self.sum_points)
 
     def call(self, inputs, **kwargs):
-        r, z = inputs
-        dist_matrix = self.distance_matrix(r)
+        z, r = inputs
+        one_hot = self.one_hot(z)
+        dist_matrix = self.distance_matrix([one_hot, r])
         #  (batch, points, points, basis_functions)
         rbf = self.cutoff([dist_matrix, self.basis_function(dist_matrix)])
         # (batch, points, points, 3)
         vectors = self.unit_vectors(r)
         if self.sum_points:
             rbf = tf.reduce_sum(rbf, axis=-2)
-        return [self.one_hot(z), rbf, vectors]
+        return [one_hot, rbf, vectors]
 
     def get_config(self):
         base = super().get_config()
@@ -74,7 +76,7 @@ class Preprocessing(Layer):
         return {**base, **updates}
 
     def compute_output_shape(self, input_shape):
-        r, _ = input_shape
+        _, r = input_shape
         batch, points, _ = r
         return [
             tf.TensorShape([batch, points, self.max_z]),
@@ -104,3 +106,12 @@ class UnitVectors(Layer):
             v = i - j
         den = utils.norm_with_epsilon(v, axis=-1, keepdims=True)
         return v / den
+
+
+class MaskedDistanceMatrix(DistanceMatrix):
+    def call(self, inputs, **kwargs):
+        one_hot, inputs = inputs
+        d = super().call(inputs, **kwargs)
+        return DummyAtomMasking(atom_axes=1)(
+            [one_hot, DummyAtomMasking(atom_axes=2)([one_hot, d])]
+        )

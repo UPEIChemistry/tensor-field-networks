@@ -1,6 +1,8 @@
+import pytest
 import os
 
 from math import ceil, isclose
+import numpy as np
 
 from tfn.tools.loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader
 
@@ -12,9 +14,8 @@ class TestQM9Loader:
         assert len(data) == 3
         assert len(data[0]) == 2
         assert len(data[0][0]) == 2
-        assert ceil(len(data[0][0][0]) / 0.7) == 133885.0
 
-    def test_splitting(self):
+    def test_train_val_test_splitting(self):
         loader = QM9DataDataLoader(
             os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:20:10"
         )
@@ -24,23 +25,51 @@ class TestQM9Loader:
         assert isclose(len(data[1][0][0]), ceil(0.20 * 133885), abs_tol=1)
         assert isclose(len(data[2][0][0]), ceil(0.10 * 133885), abs_tol=1)
 
+    def test_train_val_splitting(self):
+        loader = QM9DataDataLoader(
+            os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:30:0"
+        )
+        data = loader.load_data()
+        assert len(data) == 3
+        assert isclose(len(data[0][0][0]), ceil(0.70 * 133885), abs_tol=1)
+        assert isclose(len(data[1][0][0]), ceil(0.30 * 133885), abs_tol=1)
+        assert data[2] is None
+
+    def test_train_test_splitting(self):
+        loader = QM9DataDataLoader(
+            os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:0:30"
+        )
+        data = loader.load_data()
+        assert len(data) == 3
+        assert isclose(len(data[0][0][0]), ceil(0.70 * 133885), abs_tol=1)
+        assert data[1] is None
+        assert isclose(len(data[2][0][0]), ceil(0.30 * 133885), abs_tol=1)
+
+    def test_cross_validation_splitting(self):
+        loader = QM9DataDataLoader(
+            os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting=7
+        )
+        data = loader.load_data()
+        assert len(data) == 7
+        assert len(np.concatenate([d[0][0] for d in data], axis=0)) == 133885
+
     def test_modified(self):
         loader = QM9DataDataLoader(
             os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:20:10"
         )
         data = loader.load_data(modify_structures=True, modify_distance=1)
         assert len(data[0][0]) == 3
-        assert data[0][1][0].shape[1:] == (loader.num_points, loader.num_points)
+        assert data[0][1][0].shape[1:] == (loader.num_points, 3)
 
-    def test_cartesian(self):
+    def test_distance_matrix(self):
         loader = QM9DataDataLoader(
             os.environ["DATADIR"] + "/QM9_data_original.hdf5", splitting="70:20:10"
         )
         data = loader.load_data(
-            modify_structures=True, modify_distance=1, output_distance_matrix=False
+            modify_structures=True, modify_distance=1, output_distance_matrix=True
         )
         assert len(data[0][0]) == 3
-        assert data[0][1][0].shape[1:] == (loader.num_points, 3)
+        assert data[0][1][0].shape[1:] == (loader.num_points, loader.num_points)
 
     def test_classifier(self):
         loader = QM9DataDataLoader(
@@ -59,7 +88,7 @@ class TestISO17Loader:
         assert len(data[0]) == 2  # x_train, y_train
         assert len(data[0][0]) == 2  # r, z
         assert (
-            ceil(len(data[0][0][0]) / 0.70) == 404000.0
+            ceil(len(data[0][0][0]) / 0.70) == 461715
         )  # ensure train split is 95% of total reference examples
         assert data[0][0][0].shape[1] == 29
 

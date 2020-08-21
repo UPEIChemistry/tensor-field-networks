@@ -13,17 +13,29 @@ class DataLoader(object):
         self,
         path: str,
         map_points: bool = True,
-        splitting: Union[str, None] = "70:20:10",
+        splitting: Union[str, int, None] = "70:20:10",
         pre_load: bool = False,
-        num_points: int = None,
+        num_points: int = 29,
         **kwargs
     ):
+        """
+
+        :param path: str. Path to dataset, typically a .npz or .hdf5 file.
+        :param map_points: bool. Defaults to True. Whether or not to map point integers
+            (e.g. atomic numbers) into a smaller set, such that no integer is left unassigned.
+            pass False if reconstructing .xyz files after model training.
+        :param splitting: Union[str, int, None]. Defaults to '70:20:10'
+        :param pre_load:
+        :param num_points:
+        :param kwargs:
+        """
         self.path = path
         self.map_points = map_points
         self.splitting = splitting
         self.num_points = num_points
+        self.data = None
+        self.dataset_length = None
 
-        self._data = None
         self._max_z = None
         self._mu = None
         self._sigma = None
@@ -53,7 +65,15 @@ class DataLoader(object):
             (x_test, y_test)
         ]
         """
-        raise NotImplementedError
+        if self.data is None or self.dataset_length is None:
+            raise NotImplementedError(
+                "Data and Length must be specified. Make sure a DataLoader "
+                "subclass is being used."
+            )
+        if isinstance(self.splitting, int):
+            return self.cross_validate()
+        else:
+            return self.three_way_split()
 
     def few_examples(self, num_examples: int = 5, **kwargs):
         data = self.load_data(**kwargs)
@@ -68,12 +88,28 @@ class DataLoader(object):
             truncated_data.append(truncated_split)
         return truncated_data
 
-    def split_dataset(self, data: list, length: int):
+    def cross_validate(self, data: list = None, length: int = None):
         """
+        :return: data in the format: [(x_0, y_0), (x_1, y_1), ...] for number of folds specified
+            in splitting param.
+        """
+        data = data or self.data
+        length = length or self.dataset_length
+        if self.splitting < 2:
+            raise ValueError(
+                "Must provide a splitting param of 2 or more folds for cross "
+                "validation"
+            )
+        fold_length, remainder = divmod(length, self.splitting)
+        folds = [fold_length for _ in range(self.splitting)]
+        if remainder > 0.25 * length:
+            folds.append(remainder)
+        else:
+            folds[-1] += remainder
+        return self.split_data(data, folds)
 
-        :param data: List[List[np.ndarray]]. Full x/y data in the format:
-            [x, y], where x and y are lists of 1 or more ndarrays.
-        :param length: int. Total number of training examples.
+    def three_way_split(self, data: list = None, length: int = None):
+        """
         :return: data in the format: [
             [
                 (x_train, y_train),
@@ -82,7 +118,8 @@ class DataLoader(object):
             ]
         ]
         """
-        x_data, y_data = data
+        data = data or self.data
+        length = length or self.dataset_length
         if self.splitting is None:
             splits = [length]  # Use 100 percent of dataset as train data
         else:
@@ -90,33 +127,30 @@ class DataLoader(object):
                 int(int(x) / 100 * length)
                 for x in re.findall(r"(\d{1,2})", self.splitting)
             ]
-        output_data = []
-        for i in range(len(splits)):
-            if i == 0:
-                first_split = splits[0]
-                output_data.append(
-                    (
-                        [x[:first_split] for x in x_data],
-                        [y[:first_split] for y in y_data],
-                    )
-                )
-            elif i == 1:
-                first_split, second_split = splits[:2]
-                output_data.append(
-                    (
-                        [x[first_split : first_split + second_split] for x in x_data],
-                        [y[first_split : first_split + second_split] for y in y_data],
-                    )
-                )
-            elif i == 2:
-                first_split, second_split = splits[:2]
-                output_data.append(
-                    (
-                        [x[first_split + second_split :] for x in x_data],
-                        [y[first_split + second_split :] for y in y_data],
-                    )
-                )
+            splits[int(np.argmax(splits))] += length - sum(
+                splits
+            )  # Add remainder to largest split
+        return self.split_data(data, splits)
 
+    @staticmethod
+    def split_data(data: list, splits: list):
+        """
+        :param data: dataset in the form [x, y], where x and y are lists of ndarrays.
+        :param splits: List[int].
+        :return: data split according to splits, with None for splits with length == 0.
+        """
+        x_data, y_data = data
+        output_data = []
+        for i, split in enumerate(splits):
+            cursor = sum(splits[:i])
+            boundary = cursor + split
+            output_data.append(
+                (
+                    [x[cursor:boundary] for x in x_data],
+                    [y[cursor:boundary] for y in y_data],
+                )
+            )
+        output_data = [o if len(o[0][0]) != 0 else None for o in output_data]
         return output_data
 
     @staticmethod
@@ -136,7 +170,8 @@ class DataLoader(object):
         b = np.pad(array, pad_width=npad, mode="constant", constant_values=0)
         return b
 
-    def shuffle_arrays(self, x, y, length):
+    @staticmethod
+    def shuffle_arrays(x, y, length):
         """
         :param x: list. input data to be shuffled.
         :param y: list. output data to be shuffled.

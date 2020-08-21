@@ -58,29 +58,32 @@ class Vector(Scalar):
 
 class TestEquivariance:
     def test_dummy_atom_masked_predicted_vectors_rotate_correctly(
-        self, random_cartesians_and_z, dynamic, eager
+        self, random_z_and_cartesians, dynamic, eager
     ):
-        start, z = random_cartesians_and_z
+        z, start = random_z_and_cartesians
         end = np.random.rand(2, 10, 3)
         model = Vector(dynamic=dynamic)
         model.compile(optimizer="adam", loss="mae", run_eagerly=eager)
-        model.fit([start, z], end, epochs=5)
-        predicted_end = model.predict([start, z])
-        R = rotation_matrix([1, 0, 0], theta=np.radians(45))
-        rotated_start = np.dot(start, R)
-        predicted_rotated_end = model.predict([rotated_start, z])
+        model.fit([z, start], end, epochs=5)
+        predicted_end = model.predict([z, start])
+        rot_mat = rotation_matrix([1, 0, 0], theta=np.radians(45))
+        rotated_start = np.dot(start, rot_mat)
+        predicted_rotated_end = model.predict([z, rotated_start])
         assert np.all(
             np.isclose(
-                np.dot(predicted_end, R), predicted_rotated_end, rtol=0, atol=1.0e-5
+                np.dot(predicted_end, rot_mat),
+                predicted_rotated_end,
+                rtol=0,
+                atol=1.0e-5,
             )
         )
 
 
 class TestScalars:
     def test_default_model_predict_molecular_energies(
-        self, random_cartesians_and_z, dynamic, eager
+        self, random_z_and_cartesians, dynamic, eager
     ):
         e = np.random.rand(2, 1).astype("float32")
         model = Scalar(dynamic=dynamic)
         model.compile(optimizer="adam", loss="mae", run_eagerly=eager)
-        model.fit(x=random_cartesians_and_z, y=e, epochs=2)
+        model.fit(x=random_z_and_cartesians, y=e, epochs=2)

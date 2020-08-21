@@ -1,4 +1,7 @@
-from .job import Job, DefaultJob
-from .single_model import SingleModel
+from .job import Job
+from .keras_job import KerasJob
+from .regression import Regression, StructurePrediction
+from .classification import Classification
 from .pipeline import Pipeline
-from .search import Search, GridSearch
+from .search import GridSearch
+from .cross_validate import CrossValidate

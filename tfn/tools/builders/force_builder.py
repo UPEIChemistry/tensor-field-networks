@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Lambda
 
-from atomic_images.layers import Unstandardization
+from tfn.layers.atomic_images import Unstandardization
 from . import Builder
 
 

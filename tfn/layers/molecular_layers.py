@@ -1,6 +1,6 @@
 from tensorflow.keras.layers import Layer
 
-from atomic_images.layers import DummyAtomMasking
+from .atomic_images import DummyAtomMasking
 
 from . import Convolution, SelfInteraction, EquivariantActivation
 

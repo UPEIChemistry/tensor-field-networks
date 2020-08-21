@@ -111,9 +111,9 @@ class TestMolecularConvolution:
         )
         assert len(output) == 2
 
-    def test_sum_points(self, random_cartesians_and_z, random_features_and_targets):
+    def test_sum_points(self, random_z_and_cartesians, random_features_and_targets):
         point_cloud = layers.Preprocessing(max_z=5, sum_points=True)(
-            random_cartesians_and_z
+            random_z_and_cartesians
         )
         assert len(point_cloud[1].shape) == 3
         features, targets = random_features_and_targets
@@ -180,8 +180,7 @@ class TestEquivariantActivation:
 
 
 class TestPreprocessing:
-    def test_3_output_tensors(self, random_cartesians_and_z):
-        r, z = random_cartesians_and_z
+    def test_3_output_tensors(self, random_z_and_cartesians):
         pre_block = layers.Preprocessing(
             max_z=5,
             basis_config={
@@ -190,20 +189,21 @@ class TestPreprocessing:
                 "min_value": -1.0,
                 "max_value": 15.0,
             },
+            dynamic=True,
         )
-        outputs = pre_block([r, z])
+        outputs = pre_block(random_z_and_cartesians)
         assert len(outputs) == 3
 
-    def test_cosine_basis(self, random_cartesians_and_z):
+    def test_cosine_basis(self, random_z_and_cartesians):
         pre_block = layers.Preprocessing(max_z=5, basis_type="cosine")
-        outputs = pre_block(random_cartesians_and_z)
+        outputs = pre_block(random_z_and_cartesians)
         assert len(outputs) == 3
         assert pre_block.basis_type == "cosine"
         assert outputs[1].shape == (2, 1, 1, 80)
 
-    def test_shifted_cosine_basis(self, random_cartesians_and_z):
+    def test_shifted_cosine_basis(self, random_z_and_cartesians):
         pre_block = layers.Preprocessing(max_z=5, basis_type="shifted_cosine")
-        outputs = pre_block(random_cartesians_and_z)
+        outputs = pre_block(random_z_and_cartesians)
         assert len(outputs) == 3
         assert pre_block.basis_type == "shifted_cosine"
         assert outputs[1].shape == (2, 1, 1, 80)
