@@ -26,22 +26,25 @@ class CrossValidate(KerasJob):
             fitable = self._load_fitable(loader, fitable_config)
             fitable = self._fit(run, fitable, data)
 
-            loss = fitable.evaluate(*train, verbose=0)
-            print(f"final train loss for fold {i}: {loss}")
-            train_loss.append(loss)
-            loss = fitable.evaluate(*val, verbose=0)
-            print(f"final val loss for fold {i}: {loss}")
-            val_loss.append(loss)
+            # [(loss, metric1, metric2, ...), ...]
+            train_loss.append(self._evaluate_fold(fitable, train))
+            val_loss.append(self._evaluate_fold(fitable, val))
 
-            if self.exp_config["run_config"]["save_model"]:
-                self.exp_config["run_config"][
-                    "save_verbosity"
-                ] = 0  # avoid printing model arch.
-                self._new_model_path(i)
-                self._save_fitable(run, fitable)
-        print(f"AVERAGE TRAIN LOSS ACROSS MODELS {np.mean(train_loss)}")
-        print(f"AVERAGE VAL LOS ACROSS MODELS {np.mean(val_loss)}")
+        loss = np.array([train_loss, val_loss])  # (2, num_folds, ?)
+        print(f"AVERAGE TRAIN LOSS ACROSS MODELS {np.mean(loss[0], axis=0).tolist()}")
+        print(f"STANDARD DEVIATION: {np.std(loss[0], axis=0).tolist()}")
+        print(f"Final train losses: {train_loss}")
+
+        print(f"AVERAGE VAL LOS ACROSS MODELS {np.mean(loss[1], axis=0).tolist()}")
+        print(f"STANDARD DEVIATION: {np.std(loss[1], axis=0).tolist()}")
+        print(f"Final val losses: {val_loss}")
         return fitable
+
+    def _evaluate_fold(self, fitable: Model, data: list):
+        loss = fitable.evaluate(*data, verbose=0)
+        if not isinstance(loss, list):
+            loss = [loss]
+        return loss
 
     @staticmethod
     def _combine_folds(folds):

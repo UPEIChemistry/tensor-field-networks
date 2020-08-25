@@ -32,8 +32,8 @@ class WriteCartesians(Callback):
         path: Union[str, Path],
         validation: list = None,
         test: list = None,
-        max_structures: int = 5,
-        write_rate: int = 100,
+        max_structures: int = 10,
+        write_rate: int = 50,
         tensorboard_logdir: str = None,
     ):
         """
@@ -123,7 +123,7 @@ class WriteCartesians(Callback):
 
             m = (r + p) / 2
             pred_message = (
-                f"mae: {self.loss(pred, ts)}  "
+                f"loss: {self.loss(pred, ts)}  "
                 f"-- largest vector component: {np.max(vectors)} "
                 f"-- smallest vector component {np.min(vectors)}"
             )

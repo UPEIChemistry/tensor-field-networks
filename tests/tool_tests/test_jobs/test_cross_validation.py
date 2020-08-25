@@ -11,7 +11,7 @@ class TestCrossValidation:
         job = CrossValidate(
             {
                 "name": "test",
-                "run_config": run_config,
+                "run_config": dict(**run_config, metrics=["cumulative_loss"]),
                 "loader_config": loader_config,
                 "builder_config": dict(
                     **builder_config,
