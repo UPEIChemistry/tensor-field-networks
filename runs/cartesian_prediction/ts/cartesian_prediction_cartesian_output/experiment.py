@@ -11,7 +11,7 @@ job = StructurePrediction(
         "loader_config": {"loader_type": "ts_loader"},
         "builder_config": {
             "builder_type": "cartesian_builder",
-            "prediction_type": "vectors",
+            "prediction_type": "cartesians",
             "output_type": "cartesians",
         },
         "lr_config": {"min_delta": 0.01, "patience": 30, "cooldown": 20},
