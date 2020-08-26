@@ -3,12 +3,13 @@ from tfn.tools.jobs import Pipeline, StructurePrediction, CrossValidate
 
 
 job = Pipeline(
-    exp_config={"name": f"{Path(__file__).parent}", "seed": 608638837,},
+    exp_config={"name": f"{Path(__file__).parent}", "seed": 608638837},
     jobs=[
         StructurePrediction(
             exp_config={
                 "name": f"{Path(__file__).parent}",
                 "notes": "",
+                "seed": 608638837,
                 "loader_config": {
                     "loader_type": "qm9_loader",
                     "load_kwargs": {"modify_structures": True},

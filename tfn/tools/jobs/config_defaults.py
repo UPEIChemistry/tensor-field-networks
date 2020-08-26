@@ -95,10 +95,10 @@ tb_config = {  # Passed directly to tensorboard callback
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     "monitor": "val_loss",
     "factor": 0.5,
-    "patience": 10,
+    "patience": 20,
     "verbose": 1,
     "min_delta": 0.0001,
-    "cooldown": 10,
+    "cooldown": 20,
     "min_lr": 0.000001,
 }
 

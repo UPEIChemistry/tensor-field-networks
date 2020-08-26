@@ -6,7 +6,7 @@ job = StructurePrediction(
     exp_config={
         "name": f"{Path(__file__).parent}",
         "notes": "",
-        "run_config": {"loss": "mae", "metrics": ["cumulative_loss"]},
+        "run_config": {"epochs": 200, "loss": "mae", "metrics": ["cumulative_loss"]},
         "loader_config": {
             "loader_type": "qm9_loader",
             "load_kwargs": {"modify_structures": True},

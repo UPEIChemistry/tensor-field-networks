@@ -97,13 +97,13 @@ class QM9DataDataLoader(DataLoader):
         self.dataset_length = length
         return super().load_data(*args, **kwargs)
 
-    def modify_structures(self, c, distance=0.5, seed=0):
+    def modify_structures(self, c, distance=0.75, seed=0):
         np.random.seed(seed)
         indices = np.random.randint(3, size=(len(c)))
         forward, reverse = np.copy(c), np.copy(c)
-        forward += 0.1 * distance
-        reverse -= 0.1 * distance
+        forward += 0.2 * distance
+        reverse -= 0.2 * distance
         for i, j in enumerate(indices):
-            forward[i, j] += 0.9 * distance
-            reverse[i, j] -= 0.9 * distance
+            forward[i, j] += 0.8 * distance
+            reverse[i, j] -= 0.8 * distance
         return forward, reverse
