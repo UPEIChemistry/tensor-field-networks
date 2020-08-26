@@ -5,6 +5,7 @@ from typing import List
 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver, MongoObserver, RunObserver
+from tensorflow.keras.models import Model
 
 from tfn.tools.ingredients import builder_ingredient, data_ingredient
 from tfn.tools.jobs import config_defaults as cd
@@ -111,7 +112,12 @@ class Job(metaclass=ABCMeta):
         """
         pass
 
-    def run(self):
+    def run(
+        self,
+        fitable: Model = None,
+        fitable_config: dict = None,
+        loader_config: dict = None,
+    ):
         """
         Exposed method of the particular job. Runs whatever work is entailed by the job based on
         the content provided in `self.exp_config`.
@@ -119,7 +125,7 @@ class Job(metaclass=ABCMeta):
 
         @self.experiment.main
         def main(_run):
-            self._main(_run)
+            self._main(_run, fitable, fitable_config, loader_config)
 
         self.experiment.run()
 

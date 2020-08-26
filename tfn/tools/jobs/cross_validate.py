@@ -1,3 +1,5 @@
+from copy import copy
+
 import numpy as np
 from sacred.run import Run
 from tensorflow.keras.models import Model
@@ -14,6 +16,7 @@ class CrossValidate(KerasJob):
         loader_config: dict = None,
     ):
         # folds: (((x1, x2, ...), (y1, y2, ...)), ...)
+        model = None
         train_loss = []
         val_loss = []
         loader, folds = self._load_data(loader_config)
@@ -23,12 +26,12 @@ class CrossValidate(KerasJob):
             val = folds[i]
             train = self._combine_folds(folds[:i] + folds[i + 1 :])
             data = (train, val, None)  # No testing data
-            fitable = self._load_fitable(loader, fitable_config)
-            fitable = self._fit(run, fitable, data)
+            model = copy(fitable) or self._load_fitable(loader, fitable_config)
+            model = self._fit(run, model, data)
 
             # [(loss, metric1, metric2, ...), ...]
-            train_loss.append(self._evaluate_fold(fitable, train))
-            val_loss.append(self._evaluate_fold(fitable, val))
+            train_loss.append(self._evaluate_fold(model, train))
+            val_loss.append(self._evaluate_fold(model, val))
 
         loss = np.array([train_loss, val_loss])  # (2, num_folds, ?)
         print(f"AVERAGE TRAIN LOSS ACROSS MODELS {np.mean(loss[0], axis=0).tolist()}")
@@ -38,7 +41,7 @@ class CrossValidate(KerasJob):
         print(f"AVERAGE VAL LOS ACROSS MODELS {np.mean(loss[1], axis=0).tolist()}")
         print(f"STANDARD DEVIATION: {np.std(loss[1], axis=0).tolist()}")
         print(f"Final val losses: {val_loss}")
-        return fitable
+        return model
 
     def _evaluate_fold(self, fitable: Model, data: list):
         loss = fitable.evaluate(*data, verbose=0)

@@ -11,10 +11,7 @@ class DualTrunkBuilder(Builder):
             self.embedding_units, name="embedding"
         )
         embeddings = [
-            embedding_layer(
-                [pc[0], Lambda(lambda x: tf.expand_dims(x, axis=-1))(pc[0])]
-            )
-            for pc in point_clouds
+            self.make_embedding(pc[0], embedding_layer) for pc in point_clouds
         ]
         layers = self.get_layers()
         inputs = [

@@ -153,24 +153,21 @@ class Builder(object):
 
         return output
 
-    def make_embedding(self, one_hot):
-        scalar = Lambda(lambda x: tf.expand_dims(x, axis=-1), name="scalar_embedding")(
-            one_hot
-        )
-        vector = Lambda(lambda x: tf.tile(x, (1, 1, 1, 3)), name="vector_embedding")(
-            scalar
-        )
+    def make_embedding(self, one_hot, layer: MolecularSelfInteraction = None):
+        scalar = Lambda(lambda x: tf.expand_dims(x, axis=-1))(one_hot)
+        vector = Lambda(lambda x: tf.tile(x, (1, 1, 1, 3)))(scalar)
         if self.residual:
             pre_embedding = [one_hot, scalar, vector]
         else:
             pre_embedding = [one_hot, scalar]
-        return MolecularSelfInteraction(self.embedding_units)(pre_embedding)
+        layer = layer or MolecularSelfInteraction(self.embedding_units)
+        return layer(pre_embedding)
 
     def get_learned_output(self, inputs: list):
         inputs = [
             inputs[0],
             inputs[-1],
-        ]  # General case for a single molecule as input (r, z)
+        ]  # General case for a single molecule as input (z, r)
         point_cloud = self.point_cloud_layer(inputs)  # one_hot, rbf, vectors
         embedding = self.make_embedding(one_hot=point_cloud[0])
         output = self.get_learned_tensors(embedding, point_cloud)

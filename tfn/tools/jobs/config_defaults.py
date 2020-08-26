@@ -22,6 +22,7 @@ run_config = {  # Defines kwargs used when running a job
     "num_models_to_test": 1,
     "fit_verbosity": 2,
     "save_verbosity": 0,
+    "freeze_layers": False,
 }
 loader_config = {  # Passed directly to loader classes
     "loader_type": "qm9_loader",
