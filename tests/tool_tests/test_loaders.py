@@ -117,6 +117,11 @@ class TestTSLoader:
         assert len(data[0][0]) == 3  # Z, RC, PC
         assert len(data[0][1]) == 1  # TS
 
+    def test_remove_noise(self):
+        loader = TSLoader(os.environ["DATADIR"] + "/ts.hdf5", splitting=None)
+        data = loader.load_data(remove_noise=True)
+        assert len(data[0][0][0]) == 55
+
     def test_energy_serving(self):
         loader = TSLoader(os.environ["DATADIR"] + "/ts.hdf5", pre_load=False)
         data = loader.load_data(output_type="energies")

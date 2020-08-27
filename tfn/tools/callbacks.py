@@ -30,6 +30,7 @@ class WriteCartesians(Callback):
     def __init__(
         self,
         path: Union[str, Path],
+        train: list = None,
         validation: list = None,
         test: list = None,
         max_structures: int = 10,
@@ -49,6 +50,7 @@ class WriteCartesians(Callback):
         """
         super().__init__()
         self.path = Path(path)
+        self.train = train
         self.validation = validation
         self.test = test
         self.max_structures = max_structures
@@ -156,15 +158,20 @@ class WriteCartesians(Callback):
                 self._prediction_type = "cartesians"
 
     def on_epoch_end(self, epoch, logs=None):
-        if self.validation is None:
+        if self.validation is None or self.train is None:
             return
         else:
             if epoch % self.write_rate == 0:
-                (z, r, p), (ts,) = self.validation
-                midpoint_loss = self.loss((r + p) / 2, ts)
-                print(f"midpoint val loss: {midpoint_loss}")
-                tf.summary.scalar("val_midpoint_loss", midpoint_loss, epoch)
-                self.write_cartesians(self.validation, self.path / f"epoch_{epoch}")
+                (train_z, train_r, train_p), (train_ts,) = self.train
+                (val_z, val_r, val_p), (val_ts,) = self.validation
+
+                train_midpoint_loss = self.loss((train_r + train_p) / 2, train_ts)
+                val_midpoint_loss = self.loss((val_r + val_p) / 2, val_ts)
+                tf.summary.scalar("val_midpoint_loss", val_midpoint_loss, epoch)
+                tf.summary.scalar("train_midpoint_loss", train_midpoint_loss, epoch)
+
+                self.write_cartesians(self.validation, self.path / f"val/epoch_{epoch}")
+                self.write_cartesians(self.train, self.path / f"train/epoch_{epoch}")
 
     def on_train_end(self, logs=None):
         if self.test is None:

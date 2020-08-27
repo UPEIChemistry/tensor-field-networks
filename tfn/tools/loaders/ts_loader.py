@@ -90,6 +90,19 @@ class TSLoader(DataLoader):
                 * self.EV_PER_HARTREE
                 for structure_type in ("ts", "reactant", "product")
             }
+            noisy_indices = np.asarray(
+                dataset["noisy_reactions"], dtype="int"
+            )  # (16, )
+
+        # Pull out noise
+        if kwargs.get("remove_noise", False):
+            atomic_nums = np.delete(atomic_nums, noisy_indices, axis=0)
+            cartesians = {
+                k: np.delete(c, noisy_indices, axis=0) for k, c in cartesians.items()
+            }
+            energies = {
+                k: np.delete(e, noisy_indices, axis=0) for k, e in energies.items()
+            }
 
         # Remap
         if self.map_points:

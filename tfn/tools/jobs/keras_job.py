@@ -140,6 +140,8 @@ class KerasJob(Job):
         :param test_data: tuple. contains (x_test, y_test).
         :return: float. Scalar test_loss value.
         """
+        if test_data is None:
+            return 0.0
         x_test, y_test = test_data
         loss = fitable.evaluate(x=x_test, y=y_test, verbose=0)
         print(f"Test split results: {loss}")

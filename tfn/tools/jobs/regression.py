@@ -25,5 +25,5 @@ class StructurePrediction(Regression):
     ) -> Model:
         path = Path(run.observers[0].dir).absolute() / "cartesians"
         return super()._fit(
-            run, fitable, data, callbacks=[WriteCartesians(path, *data[1:])],
+            run, fitable, data, callbacks=[WriteCartesians(path, *data)],
         )
