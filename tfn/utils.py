@@ -50,11 +50,15 @@ def shifted_softplus(x):
     return y - tf.math.log(2.0)
 
 
-def cumulative_loss(y_pred, y_true):
-    if y_pred.shape[1:] != y_true.shape[1:]:
-        raise ValueError(
-            f"shape mismatch between y_pred: {y_pred.shape} and y_true: "
-            f"{y_true.shape}"
-        )
-    loss = tf.abs(y_pred - y_true)  # (batch, points, axis_2)
-    return tf.reduce_sum(tf.reduce_sum(loss, axis=-1), axis=-1)  # (batch, )
+def cartesian_loss(y_pred, y_true, mixing: "str" = "average"):
+    loss = tf.sqrt(tf.reduce_sum(tf.square(y_pred - y_true), axis=-1) + 1e-7)
+    loss = tf.where(loss >= 1e-7, loss, tf.zeros_like(loss))
+    if mixing == "average":
+        loss = tf.reduce_mean(loss, axis=-1)
+    else:
+        loss = tf.reduce_sum(loss, axis=-1)
+    return loss
+
+
+def manhattan_loss(y_pred, y_true):
+    return cartesian_loss(y_pred, y_true, mixing="sum")

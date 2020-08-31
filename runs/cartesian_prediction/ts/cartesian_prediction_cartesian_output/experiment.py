@@ -9,8 +9,8 @@ job = StructurePrediction(
         "seed": 0,
         "run_config": {
             "epochs": 500,
-            "loss": "mae",
-            "metrics": ["cumulative_loss"],
+            "loss": "cartesian_loss",
+            "metrics": ["manhattan_loss"],
             "test": False,
         },
         "loader_config": {

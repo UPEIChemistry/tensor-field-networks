@@ -113,7 +113,7 @@ class TestDualModels:
 
 
 class TestCartesianModels:
-    def test_cumulative_loss_cartesian_prediction_distance_matrix_output(
+    def test_metrics_cartesian_prediction_distance_matrix_output(
         self, run_config, builder_config
     ):
         loader_config = {
@@ -124,7 +124,9 @@ class TestCartesianModels:
             {
                 "name": "test",
                 "run_config": dict(
-                    **run_config, loss="cumulative_loss", optimizer="sgd"
+                    **run_config,
+                    optimizer="sgd",
+                    metrics=["cartesian_loss", "manhattan_loss"]
                 ),
                 "loader_config": loader_config,
                 "builder_config": dict(

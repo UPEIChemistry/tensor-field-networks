@@ -18,6 +18,7 @@ class StructurePrediction(Regression):
         base["loader_config"][
             "map_points"
         ] = False  # Ensure reconstruction works properly
+        base["run_config"]["loss"] = "cartesian_loss"
         return base
 
     def _fit(
