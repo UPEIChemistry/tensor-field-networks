@@ -117,7 +117,6 @@ class CartesianMetrics(Callback):
 
     @staticmethod
     def structure_loss(z, y_pred, y_true):
-        y_true += 50.0
         d = MaskedDistanceMatrix()
         one_hot = OneHot(np.max(z) + 1)(z)
         dist_matrix = np.abs(d([one_hot, y_pred]) - d([one_hot, y_true]))
@@ -220,7 +219,7 @@ class CartesianMetrics(Callback):
         if self.validation is None or self.train is None:
             return
         else:
-            if self.train[1][0].shape[-1] == 3:
+            if self._output_type == "cartesians":
                 self.compute_metrics(epoch, "train")
                 self.compute_metrics(epoch, "val")
 

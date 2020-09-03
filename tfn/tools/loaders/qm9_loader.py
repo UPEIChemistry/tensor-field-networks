@@ -80,8 +80,10 @@ class QM9DataDataLoader(DataLoader):
             else:
                 x = [atomic_nums, forward_cartesians, reverse_cartesians]
                 y = [
-                    MaskedDistanceMatrix()(
-                        [OneHot(self.max_z)(atomic_nums), cartesians]
+                    np.triu(
+                        MaskedDistanceMatrix()(
+                            [OneHot(self.max_z)(atomic_nums), cartesians]
+                        )
                     )
                     if kwargs.get("output_distance_matrix", False)
                     else cartesians

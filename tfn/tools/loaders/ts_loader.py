@@ -149,7 +149,7 @@ class TSLoader(DataLoader):
                 else cartesians["product"],
             ]
             y = [
-                np.array(
+                np.triu(
                     MaskedDistanceMatrix()(
                         [OneHot(self.max_z)(atomic_nums), cartesians["ts"]]
                     )

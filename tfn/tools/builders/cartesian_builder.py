@@ -39,6 +39,9 @@ class CartesianBuilder(DualTrunkBuilder):
             output = MaskedDistanceMatrix(name="distance_matrix")(
                 [point_cloud[0][0], output]
             )  # (batch, points, points)
+            output = Lambda(
+                lambda x: tf.linalg.band_part(x, 0, -1), name="upper_triangle"
+            )(output)
         self.model = Model(inputs=inputs, outputs=output, name=self.name)
         return self.model
 
