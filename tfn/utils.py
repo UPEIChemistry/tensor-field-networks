@@ -48,17 +48,3 @@ def rotation_matrix(axis_matrix=None, theta=math.pi / 2):
 def shifted_softplus(x):
     y = tf.where(x < 14.0, tf.math.softplus(tf.where(x < 14.0, x, tf.zeros_like(x))), x)
     return y - tf.math.log(2.0)
-
-
-def cartesian_loss(y_pred, y_true, mixing: "str" = "average"):
-    loss = tf.sqrt(tf.reduce_sum(tf.square(y_pred - y_true), axis=-1) + 1e-7)
-    loss = tf.where(loss >= 1e-7, loss, tf.zeros_like(loss))
-    if mixing == "average":
-        loss = tf.reduce_mean(loss, axis=-1)
-    else:
-        loss = tf.reduce_sum(loss, axis=-1)
-    return loss
-
-
-def manhattan_loss(y_pred, y_true):
-    return cartesian_loss(y_pred, y_true, mixing="sum")

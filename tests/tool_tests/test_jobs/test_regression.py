@@ -113,32 +113,6 @@ class TestDualModels:
 
 
 class TestCartesianModels:
-    def test_metrics_cartesian_prediction_distance_matrix_output(
-        self, run_config, builder_config
-    ):
-        loader_config = {
-            "loader_type": "ts_loader",
-            "load_kwargs": {"output_distance_matrix": True},
-        }
-        job = StructurePrediction(
-            {
-                "name": "test",
-                "run_config": dict(
-                    **run_config,
-                    optimizer="sgd",
-                    metrics=["cartesian_loss", "manhattan_loss"]
-                ),
-                "loader_config": loader_config,
-                "builder_config": dict(
-                    **builder_config,
-                    builder_type="cartesian_builder",
-                    prediction_type="cartesians",
-                    output_type="distance_matrix"
-                ),
-            }
-        )
-        job.run()
-
     def test_vector_prediction_cartesian_output(self, run_config, builder_config):
         loader_config = {
             "loader_type": "ts_loader",

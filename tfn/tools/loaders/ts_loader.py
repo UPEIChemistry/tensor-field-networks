@@ -62,8 +62,12 @@ class TSLoader(DataLoader):
             'energies', 'both', 'classifier', 'siamese']
         :return: data in the format: [(x_train, y_train), (x_val, y_val), (x_test, y_test)]
         """
-        if self.data is not None and kwargs.get("cache", True):
-            return self.data
+        if (
+            self.data is not None
+            and self.dataset_length is not None
+            and kwargs.get("cache", True)
+        ):
+            return super().load_data()
 
         # Load Data
         with File(self.path, "r") as dataset:

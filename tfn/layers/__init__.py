@@ -1,6 +1,6 @@
 from tensorflow.keras.utils import get_custom_objects
 
-from ..utils import shifted_softplus, cartesian_loss, manhattan_loss
+from ..utils import shifted_softplus
 
 from .atomic_images import (
     OneHot,
@@ -35,8 +35,6 @@ from .molecular_layers import (
 get_custom_objects().update(
     {
         "ssp": shifted_softplus,
-        "cartesian_loss": cartesian_loss,
-        "manhattan_loss": manhattan_loss,
         RadialFactory.__name__: RadialFactory,
         DenseRadialFactory.__name__: DenseRadialFactory,
         Radial.__name__: Radial,

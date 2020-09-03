@@ -4,7 +4,7 @@ from sacred.run import Run
 from tensorflow.keras.models import Model
 
 from . import KerasJob
-from ..callbacks import WriteCartesians
+from ..callbacks import CartesianMetrics
 
 
 class Regression(KerasJob):
@@ -18,7 +18,6 @@ class StructurePrediction(Regression):
         base["loader_config"][
             "map_points"
         ] = False  # Ensure reconstruction works properly
-        base["run_config"]["loss"] = "cartesian_loss"
         return base
 
     def _fit(
@@ -26,5 +25,5 @@ class StructurePrediction(Regression):
     ) -> Model:
         path = Path(run.observers[0].dir).absolute() / "cartesians"
         return super()._fit(
-            run, fitable, data, callbacks=[WriteCartesians(path, *data)],
+            run, fitable, data, callbacks=[CartesianMetrics(path, *data)],
         )

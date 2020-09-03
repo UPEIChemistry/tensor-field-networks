@@ -6,11 +6,10 @@ job = StructurePrediction(
     exp_config={
         "name": f"{Path(__file__).parent}",
         "notes": "",
-        "seed": 0,
+        "seed": 1,
         "run_config": {
             "epochs": 500,
-            "loss": "cartesian_loss",
-            "metrics": ["manhattan_loss"],
+            "metrics": ["cartesian_loss", "manhattan_loss"],
             "test": False,
         },
         "loader_config": {

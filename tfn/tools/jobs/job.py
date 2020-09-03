@@ -125,9 +125,9 @@ class Job(metaclass=ABCMeta):
 
         @self.experiment.main
         def main(_run):
-            self._main(_run, fitable, fitable_config, loader_config)
+            return self._main(_run, fitable, fitable_config, loader_config)
 
-        self.experiment.run()
+        return self.experiment.run()
 
     @abstractmethod
     def _load_data(self, config):

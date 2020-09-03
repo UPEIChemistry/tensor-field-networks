@@ -10,6 +10,7 @@ from tensorflow.keras.metrics import categorical_accuracy
 from tensorflow.keras.losses import get as get_loss
 
 from .converters import ndarrays_to_xyz
+from ..layers import MaskedDistanceMatrix, OneHot
 
 
 class TestModel(Callback):
@@ -26,7 +27,7 @@ class TestModel(Callback):
             logs["test_{}".format(name)] = pred
 
 
-class WriteCartesians(Callback):
+class CartesianMetrics(Callback):
     def __init__(
         self,
         path: Union[str, Path],
@@ -56,8 +57,12 @@ class WriteCartesians(Callback):
         self.max_structures = max_structures
         self.write_rate = write_rate
         logdir = tensorboard_logdir or self.path.parent / "logs"
-        self.file_writer = tf.summary.create_file_writer(str(logdir / "metrics"))
-        self.file_writer.set_as_default()
+        self.file_writers = [
+            tf.summary.create_file_writer(str(logdir / "train")),
+            tf.summary.create_file_writer(str(logdir / "train")),
+            tf.summary.create_file_writer(str(logdir / "validation")),
+            tf.summary.create_file_writer(str(logdir / "validation")),
+        ]
 
         self._prediction_type = "vectors"
         self._output_type = "cartesians"
@@ -110,6 +115,18 @@ class WriteCartesians(Callback):
         else:
             return np.mean(get_loss(self.model.loss)(a, b))
 
+    @staticmethod
+    def structure_loss(z, y_pred, y_true):
+        y_true += 50.0
+        d = MaskedDistanceMatrix()
+        one_hot = OneHot(np.max(z) + 1)(z)
+        dist_matrix = np.abs(d([one_hot, y_pred]) - d([one_hot, y_true]))
+        dist_matrix = np.triu(dist_matrix)
+        return (
+            float(np.mean(dist_matrix[dist_matrix != 0])),
+            float(np.mean(np.sum(np.sum(dist_matrix, axis=-1), axis=-1), axis=0)),
+        )
+
     def write_cartesians(self, data: list, path: Path):
         """
         :param data: list. Of shape [[z, r, p], [true]]
@@ -147,6 +164,48 @@ class WriteCartesians(Callback):
                 p, z, path / f"products/{i}_product.xyz", f"{self.loss(p, ts)}"
             )
 
+    def compute_metrics(self, epoch, split: str = "train"):
+        if split == "train":
+            data = self.train
+            file_writers = self.file_writers[:2]
+        else:
+            data = self.validation
+            file_writers = self.file_writers[2:]
+        metrics = {
+            name: metric
+            for name, metric in zip(
+                [f"mean_distance_error", f"manhattan_distance_error",],
+                self._compute_metrics(data),
+            )
+        }
+        self.write_metrics(metrics, epoch, file_writers, split)
+
+    def _compute_metrics(self, data):
+        z = data[0][0]
+        y_pred = data[1][0]
+        y_true = self.model.predict(data[0])
+        return self.structure_loss(z, y_pred, y_true)
+
+    def write_metrics(
+        self,
+        metrics: dict,
+        epoch: int,
+        file_writers: list = None,
+        prefix: str = "scalar",
+    ):
+        file_writers = file_writers or self.file_writers
+        print(
+            " -- ".join(
+                [
+                    f"{prefix}_{name}: {round(metric, 4)}"
+                    for name, metric in metrics.items()
+                ]
+            )
+        )
+        for writer, (name, metric) in zip(file_writers, metrics.items()):
+            with writer.as_default():
+                tf.summary.scalar(name, metric, epoch)
+
     def on_train_begin(self, logs=None):
         data = self.validation or self.test
         if data is None:
@@ -161,7 +220,11 @@ class WriteCartesians(Callback):
         if self.validation is None or self.train is None:
             return
         else:
-            if epoch % self.write_rate == 0:
+            if self.train[1][0].shape[-1] == 3:
+                self.compute_metrics(epoch, "train")
+                self.compute_metrics(epoch, "val")
+
+            if epoch == 0 or (epoch + 1) % self.write_rate == 0:
                 (train_z, train_r, train_p), (train_ts,) = self.train
                 (val_z, val_r, val_p), (val_ts,) = self.validation
 
