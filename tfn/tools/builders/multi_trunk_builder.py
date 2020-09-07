@@ -46,9 +46,7 @@ class DualTrunkBuilder(Builder):
         outputs = [layer(z + x)[0] for x, z in zip(inputs, point_cloud)]
         output_type = output_type or "vectors"
         if output_type == "cartesians":
-            output = Lambda(lambda x: (x[0] + x[1]) / 2, name="learned_midpoint")(
-                outputs
-            )
+            output = Lambda(lambda x: (x[0] + x[1]), name="learned_midpoint")(outputs)
         else:
             output = Lambda(lambda x: tf.abs(x[1] - x[0]), name="absolute_difference")(
                 outputs
