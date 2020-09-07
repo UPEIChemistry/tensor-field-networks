@@ -11,7 +11,7 @@ from .atomic_images import (
     DummyAtomMasking,
 )
 
-from .. import utils
+from . import utils
 
 
 class Preprocessing(Layer):

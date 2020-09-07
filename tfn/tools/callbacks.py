@@ -242,6 +242,8 @@ class CartesianMetrics(Callback):
             (z, r, p), (ts,) = self.validation
             midpoint_loss = self.loss((r + p) / 2, ts)
             print(f"midpoint test loss: {midpoint_loss}")
+            self.write_cartesians(self.train, self.path / "train/post_training")
+            self.write_cartesians(self.validation, self.path / "val/post_training")
             self.write_cartesians(self.test, self.path / "test")
 
 

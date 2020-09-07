@@ -48,3 +48,8 @@ def rotation_matrix(axis_matrix=None, theta=math.pi / 2):
 def shifted_softplus(x):
     y = tf.where(x < 14.0, tf.math.softplus(tf.where(x < 14.0, x, tf.zeros_like(x))), x)
     return y - tf.math.log(2.0)
+
+
+def tfn_mae(y_pred, y_true):
+    loss = tf.abs(y_pred - y_true)
+    return tf.reduce_mean(loss[loss != 0])

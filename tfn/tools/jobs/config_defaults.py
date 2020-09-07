@@ -11,7 +11,7 @@ run_config = {  # Defines kwargs used when running a job
     "write_test_results": False,
     "save_model": True,
     "use_strategy": False,
-    "loss": "mae",
+    "loss": "tfn_mae",
     "optimizer": "adam",
     "loss_weights": None,
     "class_weight": None,

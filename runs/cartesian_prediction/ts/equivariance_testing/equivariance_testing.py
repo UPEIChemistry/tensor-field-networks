@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tfn.utils import rotation_matrix
+from tfn.layers.utils import rotation_matrix
 from tfn.tools.builders import CartesianBuilder
 from tfn.tools.callbacks import CartesianMetrics
 from tfn.tools.loaders import TSLoader

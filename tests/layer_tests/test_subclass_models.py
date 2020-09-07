@@ -6,7 +6,7 @@ from tfn.layers import (
     MolecularConvolution,
     MolecularSelfInteraction,
 )
-from tfn.utils import rotation_matrix
+from tfn.layers.utils import rotation_matrix
 
 
 # ===== Model Subclasses ===== #

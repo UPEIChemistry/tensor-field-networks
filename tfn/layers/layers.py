@@ -9,8 +9,7 @@ from tensorflow.keras.layers import Layer
 from tensorflow.keras.models import model_from_json
 from tensorflow.keras.utils import get_custom_objects
 
-from .. import utils
-from . import RadialFactory, DenseRadialFactory
+from . import RadialFactory, DenseRadialFactory, utils
 
 
 class EquivariantLayer(object):

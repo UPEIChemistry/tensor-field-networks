@@ -1,6 +1,6 @@
 from tensorflow.keras.utils import get_custom_objects
 
-from ..utils import shifted_softplus
+from tfn.layers.utils import shifted_softplus, tfn_mae
 
 from .atomic_images import (
     OneHot,
@@ -35,6 +35,7 @@ from .molecular_layers import (
 get_custom_objects().update(
     {
         "ssp": shifted_softplus,
+        "tfn_mae": tfn_mae,
         RadialFactory.__name__: RadialFactory,
         DenseRadialFactory.__name__: DenseRadialFactory,
         Radial.__name__: Radial,

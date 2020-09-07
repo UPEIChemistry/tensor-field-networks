@@ -7,7 +7,7 @@ job = StructurePrediction(
         "name": f"{Path(__file__).parent}",
         "notes": "",
         "seed": 608638837,
-        "run_config": {"epochs": 500, "loss": "mae", "metrics": ["cumulative_loss"],},
+        "run_config": {"epochs": 500},
         "loader_config": {
             "loader_type": "ts_loader",
             "load_kwargs": {"output_distance_matrix": True},
