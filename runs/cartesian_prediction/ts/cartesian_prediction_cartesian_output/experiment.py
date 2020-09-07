@@ -7,11 +7,7 @@ job = StructurePrediction(
         "name": f"{Path(__file__).parent}",
         "notes": "",
         "seed": 1,
-        "run_config": {
-            "epochs": 500,
-            "metrics": ["cartesian_loss", "manhattan_loss"],
-            "test": False,
-        },
+        "run_config": {"epochs": 500, "test": False,},
         "loader_config": {
             "loader_type": "ts_loader",
             "splitting": "90:10:0",

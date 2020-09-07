@@ -7,8 +7,7 @@ job = Pipeline(
     jobs=[
         StructurePrediction(
             exp_config={
-                "name": f"{Path(__file__).parent}",
-                "notes": "",
+                "name": f"{Path(__file__).parent} QM9",
                 "seed": 608638837,
                 "loader_config": {
                     "loader_type": "qm9_loader",
@@ -23,15 +22,14 @@ job = Pipeline(
         ),
         CrossValidate(
             exp_config={
-                "name": f"{Path(__file__).parent}",
-                "notes": "",
-                "seed": 608638837,
-                "run_config": {
-                    "epochs": 500,
-                    "loss": "mae",
-                    "metrics": ["cumulative_loss"],
+                "name": f"{Path(__file__).parent} TS",
+                "seed": 1,
+                "run_config": {"epochs": 500},
+                "loader_config": {
+                    "loader_type": "ts_loader",
+                    "remove_noise": True,
+                    "map_points": False,
                 },
-                "loader_config": {"loader_type": "ts_loader"},
                 "builder_config": {
                     "builder_type": "cartesian_builder",
                     "prediction_type": "cartesians",
