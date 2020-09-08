@@ -38,7 +38,7 @@ class CrossValidate(KerasJob):
         print(f"STANDARD DEVIATION: {np.std(loss[0], axis=0).tolist()}")
         print(f"Final train losses: {train_loss}")
 
-        print(f"AVERAGE VAL LOS ACROSS MODELS {np.mean(loss[1], axis=0).tolist()}")
+        print(f"AVERAGE VAL LOSS ACROSS MODELS {np.mean(loss[1], axis=0).tolist()}")
         print(f"STANDARD DEVIATION: {np.std(loss[1], axis=0).tolist()}")
         print(f"Final val losses: {val_loss}")
         return model
