@@ -7,7 +7,7 @@ import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 
-__version__ = "2.3.3"
+__version__ = "2.4.0"
 __author__ = "Riley Jackson"
 __email__ = "rjjackson@upei.ca"
 __description__ = (

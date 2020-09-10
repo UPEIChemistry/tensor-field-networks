@@ -6,7 +6,7 @@ job = StructurePrediction(
     exp_config={
         "name": f"{Path(__file__).parent}",
         "notes": "",
-        "seed": 608638837,
+        "seed": 1,
         "run_config": {"epochs": 100},
         "loader_config": {
             "loader_type": "qm9_loader",

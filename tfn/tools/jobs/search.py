@@ -13,7 +13,9 @@ class GridSearch(KerasJob):
         self.grid = ParameterGrid(grid)
         self.total_models = total_models or np.inf
 
-    def _main(self, run, fitable=None, dataloader_config=None, fitable_config=None):
+    def _main(
+        self, run, seed, fitable=None, dataloader_config=None, fitable_config=None
+    ):
         for i, config in enumerate(self.grid):
             if i >= self.total_models:  # Stop when hitting max models
                 print(

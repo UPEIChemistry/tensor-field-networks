@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 from sacred.run import Run
 import tensorflow as tf
 from tensorflow.keras.callbacks import ReduceLROnPlateau, TensorBoard
@@ -18,6 +19,7 @@ class KerasJob(Job):
     def _main(
         self,
         run: Run,
+        seed: int,
         fitable: Model = None,
         fitable_config: dict = None,
         loader_config: dict = None,
@@ -34,6 +36,7 @@ class KerasJob(Job):
         :param loader_config: Optional dict. Contains data which can be used to create a new
             DataLoader instance.
         """
+        np.random.seed(seed)
         loader, data = self._load_data(loader_config)
         fitable = fitable or self._load_fitable(loader, fitable_config)
         fitable = self._fit(run, fitable, data)

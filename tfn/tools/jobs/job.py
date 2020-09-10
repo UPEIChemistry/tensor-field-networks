@@ -97,7 +97,7 @@ class Job(metaclass=ABCMeta):
         self._observers = o
 
     @abstractmethod
-    def _main(self, run, fitable, fitable_config, loader_config):
+    def _main(self, run, seed, fitable, fitable_config, loader_config):
         """
         Private method containing the actual work completed by the job. Implemented is a default
         workflow for a basic keras/kerastuner type job.
@@ -124,10 +124,10 @@ class Job(metaclass=ABCMeta):
         """
 
         @self.experiment.main
-        def main(_run):
-            return self._main(_run, fitable, fitable_config, loader_config)
+        def main(_run, _seed):
+            self._main(_run, _seed, fitable, fitable_config, loader_config)
 
-        return self.experiment.run()
+        self.experiment.run()
 
     @abstractmethod
     def _load_data(self, config):

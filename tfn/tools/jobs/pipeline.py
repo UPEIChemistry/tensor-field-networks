@@ -17,7 +17,7 @@ class Pipeline(KerasJob):
         super().__init__(*args, **kwargs)
         self.jobs = jobs
 
-    def _main(self, run, fitable=None, loader_config=None, fitable_config=None):
+    def _main(self, run, seed, fitable=None, loader_config=None, fitable_config=None):
         model_path = None
         for i, job in enumerate(self.jobs):
             loader, _ = job._load_data()
@@ -29,7 +29,7 @@ class Pipeline(KerasJob):
 
             model_path = self._new_model_path(i)
             job.exp_config["run_config"]["model_path"] = model_path
-            fitable = job._main(run, fitable)
+            fitable = job._main(run, seed, fitable)
 
         return fitable
 

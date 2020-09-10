@@ -11,6 +11,7 @@ class CrossValidate(KerasJob):
     def _main(
         self,
         run: Run,
+        seed: int,
         fitable: Model = None,
         fitable_config: dict = None,
         loader_config: dict = None,
