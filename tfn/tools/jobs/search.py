@@ -30,7 +30,7 @@ class GridSearch(KerasJob):
             ]
             self.job._new_model_path(i)
             try:
-                self.job._main(run, fitable_config=config)
+                self.job._main(run, seed, fitable_config=config)
                 print(f"# Completed search on model {i} #\n")
             except Exception as e:
                 print(
