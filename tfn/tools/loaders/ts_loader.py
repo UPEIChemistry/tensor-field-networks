@@ -134,7 +134,8 @@ class TSLoader(DataLoader):
                     atomic_nums, cartesians, blacklist=kwargs.pop("blacklist", None)
                 )
             )
-            x, y = self.shuffle_arrays(x, y, len(y[0]))
+            if kwargs.get("shuffle", True):
+                x, y = self.shuffle_arrays(x, y, len(y[0]))
             length = len(y[0])
 
         else:  # Regression dataset
@@ -166,12 +167,28 @@ class TSLoader(DataLoader):
                 y.pop(1)
 
             # shuffle dataset
-            x, y = self.shuffle_arrays(x, y, length)
+            if kwargs.get("shuffle", True):
+                x, y = self.shuffle_arrays(x, y, length)
 
         # Split and serve data
         self.data = [x, y]
         self.dataset_length = length
-        return super().load_data()
+        if self.splitting == "custom":
+            split = [
+                0,  # hetero-ring structure, complex
+                3,  # 3 member double bond ring, simple reaction
+                7,  # methyl-chloride, super simple
+                16,  # ispropyl-chloride, little more complex
+                22,  # Triple bond, perfect midpoint
+            ]
+            val = [[a[split] for a in x], [a[split] for a in y]]
+            train = [
+                [np.delete(a, split, 0) for a in x],
+                [np.delete(a, split, 0) for a in y],
+            ]
+            return train, val, None
+        else:
+            return super().load_data()
 
     def make_siamese_dataset(self, tiled_atomic_nums, tiled_cartesians, labels):
         # Make x shape: (batch, batch, 2, points, 3) Convert for output -> (batch, 2, points, 3)

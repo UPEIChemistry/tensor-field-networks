@@ -6,7 +6,7 @@ run_config = {  # Defines kwargs used when running a job
     "storage_dir": "./sacred_storage",
     "model_path": "./model.hdf5",
     "epochs": 100,
-    "batch_size": 16,
+    "batch_size": 32,
     "test": True,
     "write_test_results": False,
     "save_model": True,
@@ -90,7 +90,6 @@ tb_config = {  # Passed directly to tensorboard callback
     "histogram_freq": 10,
     "update_freq": "epoch",
     "write_images": True,
-    "embeddings_freq": 10,
 }
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     "monitor": "val_loss",
@@ -101,6 +100,8 @@ lr_config = {  # Passed directly to ReduceLROnPlateau callback
     "cooldown": 20,
     "min_lr": 0.000001,
 }
+
+cm_config = {"max_structures": 64, "write_rate": 50}
 
 
 # Precanned search-spaces

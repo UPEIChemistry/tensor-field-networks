@@ -163,6 +163,14 @@ class TestTSLoader:
         assert data[0][0][1].shape[1:] == (2, loader.num_points, 3)
         assert len(data[0][1]) == 1
 
+    def test_custom_split(self):
+        loader = TSLoader(
+            os.environ["DATADIR"] + "/ts.hdf5", pre_load=False, splitting="custom"
+        )
+        train, val, test = loader.load_data(shuffle=False)
+        assert test is None
+        assert len(val[0][0]) == 5
+
 
 class TestSN2Loader:
     def test_load_sn2_data(self):

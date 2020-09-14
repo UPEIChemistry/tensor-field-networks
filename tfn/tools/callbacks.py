@@ -34,7 +34,7 @@ class CartesianMetrics(Callback):
         train: list = None,
         validation: list = None,
         test: list = None,
-        max_structures: int = 10,
+        max_structures: int = 64,
         write_rate: int = 50,
         tensorboard_logdir: str = None,
     ):
@@ -185,6 +185,9 @@ class CartesianMetrics(Callback):
         y_true = self.model.predict(data[0])
         return self.structure_loss(z, y_pred, y_true)
 
+    def _writing(self, epoch):
+        return epoch == 0 or (epoch + 1) % self.write_rate == 0
+
     def write_metrics(
         self,
         metrics: dict,
@@ -223,7 +226,7 @@ class CartesianMetrics(Callback):
                 self.compute_metrics(epoch, "train")
                 self.compute_metrics(epoch, "val")
 
-            if epoch == 0 or (epoch + 1) % self.write_rate == 0:
+            if self._writing(epoch):
                 (train_z, train_r, train_p), (train_ts,) = self.train
                 (val_z, val_r, val_p), (val_ts,) = self.validation
 
@@ -232,8 +235,12 @@ class CartesianMetrics(Callback):
                 tf.summary.scalar("val_midpoint_loss", val_midpoint_loss, epoch)
                 tf.summary.scalar("train_midpoint_loss", train_midpoint_loss, epoch)
 
-                self.write_cartesians(self.validation, self.path / f"val/epoch_{epoch}")
-                self.write_cartesians(self.train, self.path / f"train/epoch_{epoch}")
+                self.write_cartesians(
+                    self.validation, self.path / f"val/epoch_{epoch + 1}"
+                )
+                self.write_cartesians(
+                    self.train, self.path / f"train/epoch_{epoch + 1}"
+                )
 
     def on_train_end(self, logs=None):
         if self.test is None:

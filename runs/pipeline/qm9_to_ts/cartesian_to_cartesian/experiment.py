@@ -24,7 +24,7 @@ job = Pipeline(
             exp_config={
                 "name": f"{Path(__file__).parent} TS",
                 "seed": 1,
-                "run_config": {"epochs": 300},
+                "run_config": {"epochs": 1000, "test": False, "batch_size": 64},
                 "loader_config": {
                     "loader_type": "ts_loader",
                     "splitting": 5,

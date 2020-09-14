@@ -7,13 +7,18 @@ job = GridSearch(
     job=StructurePrediction(
         exp_config={
             "name": f"{Path(__file__).parent}",
-            "notes": "192 models total",
+            "notes": "~1000 models total",
             "seed": 1,
-            "run_config": {"epochs": 300, "test": False, "fit_verbosity": 2},
+            "run_config": {
+                "epochs": 1000,
+                "test": False,
+                "batch_size": 64,
+                "use_strategy": True,
+            },
             "loader_config": {
                 "loader_type": "ts_loader",
-                "splitting": "90:10",
-                "load_kwargs": {"remove_noise": True},
+                "splitting": "custom",
+                "load_kwargs": {"remove_noise": True, "shuffle": False},
             },
             "builder_config": {
                 "builder_type": "cartesian_builder",
