@@ -7,11 +7,11 @@ job = StructurePrediction(
         "name": f"{Path(__file__).parent}",
         "notes": "",
         "seed": 1,
-        "run_config": {"epochs": 1000, "test": False, "batch_size": 64},
+        "run_config": {"epochs": 1000, "test": False, "batch_size": 48},
         "loader_config": {
             "loader_type": "ts_loader",
             "splitting": "custom",
-            "load_kwargs": {"remove_noise": True, "shuffle": False},
+            "load_kwargs": {"remove_noise": False, "shuffle": False},
         },
         "builder_config": {
             "builder_type": "cartesian_builder",
