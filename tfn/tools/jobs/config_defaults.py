@@ -23,6 +23,7 @@ run_config = {  # Defines kwargs used when running a job
     "fit_verbosity": 2,
     "save_verbosity": 0,
     "freeze_layers": False,
+    "use_default_callbacks": True,
 }
 loader_config = {  # Passed directly to loader classes
     "loader_type": "qm9_loader",
@@ -89,7 +90,7 @@ tuner_config = {  # Passed directly to tuner classes
 tb_config = {  # Passed directly to tensorboard callback
     "histogram_freq": 10,
     "update_freq": "epoch",
-    "write_images": True,
+    "write_images": False,
 }
 lr_config = {  # Passed directly to ReduceLROnPlateau callback
     "monitor": "val_loss",

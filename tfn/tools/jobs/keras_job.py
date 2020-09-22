@@ -114,16 +114,18 @@ class KerasJob(Job):
         tensorboard_directory = run.observers[0].dir + "/logs"
         (x_train, y_train), val, _ = data
         callbacks = callbacks or []
-        callbacks.extend(
-            [
-                TensorBoard(
-                    **dict(
-                        **self.exp_config["tb_config"], log_dir=tensorboard_directory
-                    )
-                ),
-                ReduceLROnPlateau(**self.exp_config["lr_config"]),
-            ]
-        )
+        if self.exp_config["run_config"]["use_default_callbacks"]:
+            callbacks.extend(
+                [
+                    TensorBoard(
+                        **dict(
+                            **self.exp_config["tb_config"],
+                            log_dir=tensorboard_directory,
+                        )
+                    ),
+                    ReduceLROnPlateau(**self.exp_config["lr_config"]),
+                ]
+            )
         kwargs = dict(
             x=x_train,
             y=y_train,

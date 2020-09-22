@@ -12,8 +12,11 @@ job = GridSearch(
             "run_config": {
                 "epochs": 1000,
                 "test": False,
-                "batch_size": 64,
+                "save_model": False,
+                "fit_verbosity": 0,
+                "batch_size": 48,
                 "use_strategy": True,
+                "use_default_callbacks": False,
             },
             "loader_config": {
                 "loader_type": "ts_loader",
@@ -25,12 +28,7 @@ job = GridSearch(
                 "prediction_type": "cartesians",
                 "output_type": "cartesians",
             },
-            "lr_config": {
-                "min_delta": 0.01,
-                "patience": 30,
-                "cooldown": 20,
-                "verbose": 0,
-            },
+            "cm_config": {"write_rate": 0, "max_structures": 0},
         }
     ),
     grid=default_grid_search,

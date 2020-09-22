@@ -64,6 +64,7 @@ class CartesianMetrics(Callback):
             tf.summary.create_file_writer(str(logdir / "validation")),
         ]
 
+        self.total_epochs = None
         self._prediction_type = "vectors"
         self._output_type = "cartesians"
 
@@ -132,36 +133,28 @@ class CartesianMetrics(Callback):
         :param path: Path object. Base path subdirectories and .xyz files will be written under.
         """
         for i, z, r, p, ts, pred in self._unwrap_data_lazily(data):
+            m = (r + p) / 2
+            # Make .xyz message lines
+            losses = {
+                name: (a, self.loss(a, ts), *self.structure_loss(z, a, ts))
+                for name, a in zip(
+                    ["true", "predicted", "midpoint", "reactant", "product"],
+                    [ts, pred, m, r, p],
+                )
+            }
+            for name, (a, loss, mean, manhattan) in losses.items():
+                message = (
+                    f"loss: {loss} "
+                    f"-- mean_error: {mean} "
+                    f"-- manhattan_error: {manhattan}"
+                )
+                ndarrays_to_xyz(a, z, path / f"{name}/{i}_{name}.xyz", message)
+
+            # Add vector information if relevant
             if self._prediction_type == "vectors":
                 # Write vectors
                 vectors = self.get_vectors([z, r, p])
                 self.write_vectors(vectors, path, i)
-            else:
-                vectors = [0.0, 0.0]
-
-            m = (r + p) / 2
-            pred_message = (
-                f"loss: {self.loss(pred, ts)}  "
-                f"-- largest vector component: {np.max(vectors)} "
-                f"-- smallest vector component {np.min(vectors)}"
-            )
-            # Write files
-            if self._output_type != "distance_matrix":
-                ndarrays_to_xyz(
-                    ts, z, path / f"true/{i}_true.xyz", f"{self.loss(ts, ts)}"
-                )
-            ndarrays_to_xyz(
-                pred, z, path / f"predicted/{i}_pred.xyz", pred_message,
-            )
-            ndarrays_to_xyz(
-                m, z, path / f"midpoints/{i}_midpoint.xyz", f"{self.loss(m, ts)}",
-            )
-            ndarrays_to_xyz(
-                r, z, path / f"reactants/{i}_reactant.xyz", f"{self.loss(r, ts)}"
-            )
-            ndarrays_to_xyz(
-                p, z, path / f"products/{i}_product.xyz", f"{self.loss(p, ts)}"
-            )
 
     def compute_metrics(self, epoch, split: str = "train"):
         if split == "train":
@@ -186,7 +179,11 @@ class CartesianMetrics(Callback):
         return self.structure_loss(z, y_pred, y_true)
 
     def _writing(self, epoch):
-        return epoch == 0 or (epoch + 1) % self.write_rate == 0
+        return (
+            False
+            if self.write_rate <= 0
+            else (epoch == 0 or (epoch + 1) % self.write_rate == 0)
+        )
 
     def write_metrics(
         self,
@@ -204,9 +201,11 @@ class CartesianMetrics(Callback):
                 ]
             )
         )
-        for writer, (name, metric) in zip(file_writers, metrics.items()):
-            with writer.as_default():
-                tf.summary.scalar(name, metric, epoch)
+
+        if self.write_rate > 0:
+            for writer, (name, metric) in zip(file_writers, metrics.items()):
+                with writer.as_default():
+                    tf.summary.scalar(name, metric, epoch)
 
     def on_train_begin(self, logs=None):
         data = self.validation or self.test
@@ -219,21 +218,12 @@ class CartesianMetrics(Callback):
                 self._prediction_type = "cartesians"
 
     def on_epoch_end(self, epoch, logs=None):
-        if self.validation is None or self.train is None:
-            return
-        else:
-            if self._output_type == "cartesians":
-                self.compute_metrics(epoch, "train")
-                self.compute_metrics(epoch, "val")
-
-            if self._writing(epoch):
-                (train_z, train_r, train_p), (train_ts,) = self.train
-                (val_z, val_r, val_p), (val_ts,) = self.validation
-
-                train_midpoint_loss = self.loss((train_r + train_p) / 2, train_ts)
-                val_midpoint_loss = self.loss((val_r + val_p) / 2, val_ts)
-                tf.summary.scalar("val_midpoint_loss", val_midpoint_loss, epoch)
-                tf.summary.scalar("train_midpoint_loss", train_midpoint_loss, epoch)
+        if self._writing(epoch):
+            self.total_epochs = epoch
+            if self.validation is not None and self.train is not None:
+                if self._output_type == "cartesians":
+                    self.compute_metrics(epoch, "train")
+                    self.compute_metrics(epoch, "val")
 
                 self.write_cartesians(
                     self.validation, self.path / f"val/epoch_{epoch + 1}"
@@ -243,15 +233,17 @@ class CartesianMetrics(Callback):
                 )
 
     def on_train_end(self, logs=None):
-        if self.test is None:
-            return
-        else:
-            (z, r, p), (ts,) = self.validation
-            midpoint_loss = self.loss((r + p) / 2, ts)
-            print(f"midpoint test loss: {midpoint_loss}")
-            self.write_cartesians(self.train, self.path / "train/post_training")
-            self.write_cartesians(self.validation, self.path / "val/post_training")
-            self.write_cartesians(self.test, self.path / "test")
+        for name, data in zip(
+            ["train", "val", "test"], [self.train, self.validation, self.test]
+        ):
+            if data is not None:
+                print(
+                    f"final {name} loss: {round(self.model.evaluate(*data, verbose=0), 4)}"
+                )
+                if self._output_type == "cartesians":
+                    self.compute_metrics(self.total_epochs + 1, name)
+                if self.write_rate > 0:
+                    self.write_cartesians(data, self.path / "post_training" / name)
 
 
 class ClassificationMetrics(Callback):
