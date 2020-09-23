@@ -11,7 +11,7 @@ job = StructurePrediction(
         "loader_config": {
             "loader_type": "ts_loader",
             "splitting": "custom",
-            "load_kwargs": {"remove_noise": False, "shuffle": False},
+            "load_kwargs": {"remove_noise": True, "shuffle": False},
         },
         "builder_config": {
             "builder_type": "cartesian_builder",
@@ -19,7 +19,6 @@ job = StructurePrediction(
             "output_type": "cartesians",
         },
         "lr_config": {"min_delta": 0.01, "patience": 30, "cooldown": 20},
-        "cm_config": {"write_rate": 2},
     }
 )
 job.run()
