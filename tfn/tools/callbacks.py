@@ -136,7 +136,11 @@ class CartesianMetrics(Callback):
             m = (r + p) / 2
             # Make .xyz message lines
             losses = {
-                name: (a, self.loss(a, ts), *self.structure_loss(z, a, ts))
+                name: (
+                    a,
+                    self.loss(a, ts),
+                    *self.structure_loss(z, np.expand_dims(a, 0), ts),
+                )
                 for name, a in zip(
                     ["true", "predicted", "midpoint", "reactant", "product"],
                     [ts, pred, m, r, p],
@@ -217,13 +221,20 @@ class CartesianMetrics(Callback):
             if "vectors" not in [layer.name for layer in self.model.layers]:
                 self._prediction_type = "cartesians"
 
+            self.write_cartesians(self.train, self.path / "train/pre_training")
+            self.write_cartesians(self.validation, self.path / "val/pre_training")
+
     def on_epoch_end(self, epoch, logs=None):
+        if self.write_rate <= 0:
+            return
+
+        if self._output_type == "cartesians":
+            self.compute_metrics(epoch, "train")
+            self.compute_metrics(epoch, "val")
+
         if self._writing(epoch):
             self.total_epochs = epoch
             if self.validation is not None and self.train is not None:
-                if self._output_type == "cartesians":
-                    self.compute_metrics(epoch, "train")
-                    self.compute_metrics(epoch, "val")
 
                 self.write_cartesians(
                     self.validation, self.path / f"val/epoch_{epoch + 1}"

@@ -5,3 +5,4 @@ from .classification import Classification
 from .pipeline import Pipeline
 from .search import GridSearch
 from .cross_validate import CrossValidate
+from .load_model import LoadModel

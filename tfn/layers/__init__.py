@@ -35,6 +35,7 @@ from .molecular_layers import (
 get_custom_objects().update(
     {
         "ssp": shifted_softplus,
+        "shifted_softplus": shifted_softplus,
         "tfn_mae": tfn_mae,
         RadialFactory.__name__: RadialFactory,
         DenseRadialFactory.__name__: DenseRadialFactory,

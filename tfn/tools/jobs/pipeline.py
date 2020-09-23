@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import List
 
-from h5py import File
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import InputLayer
 from tfn.layers.atomic_images import Unstandardization
