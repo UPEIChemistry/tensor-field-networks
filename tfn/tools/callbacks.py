@@ -186,7 +186,7 @@ class CartesianMetrics(Callback):
         return (
             False
             if self.write_rate <= 0
-            else (epoch in range(5) or (epoch + 1) % self.write_rate == 0)
+            else (epoch in range(25) or (epoch + 1) % self.write_rate == 0)
         )
 
     def write_metrics(
