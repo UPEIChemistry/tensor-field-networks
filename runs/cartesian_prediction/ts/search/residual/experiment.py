@@ -1,9 +1,12 @@
+import os
 from pathlib import Path
 from tfn.tools.jobs import GridSearch, StructurePrediction
-from tfn.tools.jobs.config_defaults import default_grid_search
+from tfn.tools.jobs.config_defaults import residual_grid_search
 
+os.environ["DATADIR"] = "/home/riley/dev/python/data"
 
 job = GridSearch(
+    exp_config={"seed": 1},
     job=StructurePrediction(
         exp_config={
             "name": f"{Path(__file__).parent}",
@@ -27,10 +30,11 @@ job = GridSearch(
                 "builder_type": "cartesian_builder",
                 "prediction_type": "cartesians",
                 "output_type": "cartesians",
+                "residual": True,
             },
             "cm_config": {"write_rate": 0, "max_structures": 0},
         }
     ),
-    grid=default_grid_search,
+    grid=residual_grid_search,
 )
 job.run()

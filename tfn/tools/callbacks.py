@@ -64,7 +64,7 @@ class CartesianMetrics(Callback):
             tf.summary.create_file_writer(str(logdir / "validation")),
         ]
 
-        self.total_epochs = None
+        self.total_epochs = -1
         self._prediction_type = "vectors"
         self._output_type = "cartesians"
 

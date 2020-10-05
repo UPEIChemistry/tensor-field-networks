@@ -119,14 +119,12 @@ default_architecture_search = {  # 1994 possible models
 }
 
 
-default_grid_search = {  # 1024 models
-    "sum_atoms": [True, False],  # 2
-    "residual": [True, False],  # 2
+residual_grid_search = {  # 216 models
     "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
-    "num_final_si_layers": [1, 2, 3, 4],  # 4
-    "max_filter_order": [0, 1],  # 2
+    "num_final_si_layers": [1, 2, 3],  # 3
+    "final_si_units": [16, 32, 64],  # 3
     "radial_factory": ["single_dense", "multi_dense"],  # 2
-    "radial_kwargs": [  # 4
+    "radial_kwargs": [  # 3
         {
             "num_layers": 1,
             "units": 64,
@@ -148,8 +146,33 @@ default_grid_search = {  # 1024 models
             "kernel_lambda": 0.01,
             "bias_lambda": 0.01,
         },
+    ],
+}
+
+
+non_residual_search = {  # 648 models
+    "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
+    "num_final_si_layers": [1, 2, 3],  # 3
+    "si_units": [16, 32, 64],  # 3
+    "final_si_units": [16, 32, 64],  # 3
+    "radial_factory": ["single_dense", "multi_dense"],  # 2
+    "radial_kwargs": [  # 3
         {
-            "num_layers": 4,
+            "num_layers": 1,
+            "units": 64,
+            "activation": "ssp",
+            "kernel_lambda": 0.01,
+            "bias_lambda": 0.01,
+        },
+        {
+            "num_layers": 2,
+            "units": 64,
+            "activation": "ssp",
+            "kernel_lambda": 0.01,
+            "bias_lambda": 0.01,
+        },
+        {
+            "num_layers": 3,
             "units": 64,
             "activation": "ssp",
             "kernel_lambda": 0.01,

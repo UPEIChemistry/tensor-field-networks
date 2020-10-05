@@ -29,12 +29,13 @@ class GridSearch(KerasJob):
                 for k, v in self.job.exp_config["builder_config"].items()
             ]
             self.job._new_model_path(i)
+            self.job._main(run, seed, fitable_config=config)
+            print(f"# Completed search on model {i} #\n")
             try:
-                self.job._main(run, seed, fitable_config=config)
-                print(f"# Completed search on model {i} #\n")
+                pass
             except Exception as e:
                 print(
-                    f"Encountered exception in search, skipping configuration...\n Error "
-                    f"message: {e}"
+                    f"Error message: {e}\n"
+                    f"Encountered {type(e)} in search, skipping configuration..."
                 )
                 pass

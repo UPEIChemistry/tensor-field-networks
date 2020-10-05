@@ -1,13 +1,16 @@
 from pathlib import Path
-from tfn.tools.jobs import Pipeline, StructurePrediction
+from tfn.tools.jobs import Pipeline, StructurePrediction, LoadModel
 
 job = Pipeline(
     exp_config={"name": f"{Path(__file__).parent}", "seed": 1},
     jobs=[
-        StructurePrediction(
+        LoadModel(
             exp_config={
                 "name": f"{Path(__file__).parent} QM9",
                 "seed": 1,
+                "run_config": {
+                    "model_path": "/home/riley/dev/python/tensor-field-networks/runs/pipeline/qm9_to_ts/cartesian_to_cartesian/single_dense_trained_qm9_model.h5"
+                },
                 "loader_config": {
                     "loader_type": "qm9_loader",
                     "load_kwargs": {"modify_structures": True},
