@@ -1,5 +1,5 @@
 from pathlib import Path
-from tfn.tools.jobs import Pipeline, StructurePrediction, LoadModel
+from tfn.tools.jobs import Pipeline, StructurePrediction, LoadModel, CrossValidate
 
 job = Pipeline(
     exp_config={"name": f"{Path(__file__).parent}", "seed": 1},
@@ -23,14 +23,14 @@ job = Pipeline(
                 },
             }
         ),
-        StructurePrediction(
+        CrossValidate(
             exp_config={
                 "name": f"{Path(__file__).parent} TS",
                 "seed": 1,
                 "run_config": {"epochs": 1000, "test": False, "batch_size": 48},
                 "loader_config": {
                     "loader_type": "ts_loader",
-                    "splitting": "custom",
+                    "splitting": 5,
                     "map_points": False,
                     "load_kwargs": {"remove_noise": True, "shuffle": False},
                 },

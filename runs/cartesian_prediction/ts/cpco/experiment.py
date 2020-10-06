@@ -1,8 +1,8 @@
 from pathlib import Path
-from tfn.tools.jobs import StructurePrediction
+from tfn.tools.jobs import CrossValidate
 
 
-job = StructurePrediction(
+job = CrossValidate(
     exp_config={
         "name": f"{Path(__file__).parent}",
         "notes": "",
@@ -10,7 +10,7 @@ job = StructurePrediction(
         "run_config": {"epochs": 1000, "test": False, "batch_size": 48},
         "loader_config": {
             "loader_type": "ts_loader",
-            "splitting": "custom",
+            "splitting": 5,
             "load_kwargs": {"remove_noise": True, "shuffle": False},
         },
         "builder_config": {

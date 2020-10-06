@@ -1,9 +1,7 @@
-import os
 from pathlib import Path
 from tfn.tools.jobs import GridSearch, StructurePrediction
 from tfn.tools.jobs.config_defaults import non_residual_search
 
-os.environ["DATADIR"] = "/home/riley/dev/python/data"
 
 job = GridSearch(
     exp_config={"seed": 1},
