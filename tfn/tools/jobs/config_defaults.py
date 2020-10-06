@@ -150,10 +150,9 @@ residual_grid_search = {  # 216 models
 }
 
 
-non_residual_search = {  # 648 models
+non_residual_search = {  # 216 models
     "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
     "num_final_si_layers": [1, 2, 3],  # 3
-    "si_units": [16, 32, 64],  # 3
     "final_si_units": [16, 32, 64],  # 3
     "radial_factory": ["single_dense", "multi_dense"],  # 2
     "radial_kwargs": [  # 3
