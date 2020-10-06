@@ -119,38 +119,8 @@ default_architecture_search = {  # 1994 possible models
 }
 
 
-residual_grid_search = {  # 216 models
-    "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
-    "num_final_si_layers": [1, 2, 3],  # 3
-    "final_si_units": [16, 32, 64],  # 3
-    "radial_factory": ["single_dense", "multi_dense"],  # 2
-    "radial_kwargs": [  # 3
-        {
-            "num_layers": 1,
-            "units": 64,
-            "activation": "ssp",
-            "kernel_lambda": 0.01,
-            "bias_lambda": 0.01,
-        },
-        {
-            "num_layers": 2,
-            "units": 64,
-            "activation": "ssp",
-            "kernel_lambda": 0.01,
-            "bias_lambda": 0.01,
-        },
-        {
-            "num_layers": 3,
-            "units": 64,
-            "activation": "ssp",
-            "kernel_lambda": 0.01,
-            "bias_lambda": 0.01,
-        },
-    ],
-}
-
-
-non_residual_search = {  # 216 models
+default_grid_search = {  # 432 models
+    "residual": [True, False],
     "model_num_layers": [[2 for _ in range(i + 1)] for i in [0, 2, 8, 16]],  # 4
     "num_final_si_layers": [1, 2, 3],  # 3
     "final_si_units": [16, 32, 64],  # 3
