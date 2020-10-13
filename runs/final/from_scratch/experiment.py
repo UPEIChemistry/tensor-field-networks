@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
-from tfn.tools.jobs import CrossValidate
+from tfn.tools.jobs import CrossValidate, StructurePrediction
 
+os.environ["DATADIR"] = "/home/riley/dev/python/data"
 
-job = CrossValidate(
+job = StructurePrediction(
     exp_config={
         "name": f"{Path(__file__).parent}",
         "notes": "",
@@ -10,12 +12,12 @@ job = CrossValidate(
         "run_config": {"epochs": 1000, "test": False, "batch_size": 48},
         "loader_config": {
             "loader_type": "ts_loader",
-            "splitting": 5,
+            "splitting": "custom",
             "load_kwargs": {"remove_noise": True, "shuffle": False},
         },
         "builder_config": {
             "builder_type": "cartesian_builder",
-            "radial_factory": "single_dense",
+            "radial_factory": "shared_dense",
             "prediction_type": "cartesians",
             "output_type": "cartesians",
         },

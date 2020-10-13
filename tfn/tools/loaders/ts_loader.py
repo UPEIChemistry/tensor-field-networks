@@ -178,8 +178,10 @@ class TSLoader(DataLoader):
                 0,  # hetero-ring structure, complex
                 3,  # 3 member double bond ring, simple reaction
                 7,  # methyl-chloride, super simple
+                11,  # ?
                 16,  # ispropyl-chloride, little more complex
-                22,  # Triple bond, perfect midpoint
+                22,  # ?
+                24,  # Triple bond, perfect midpoint
             ]
             val = [[a[split] for a in x], [a[split] for a in y]]
             train = [

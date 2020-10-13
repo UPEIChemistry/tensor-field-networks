@@ -50,17 +50,5 @@ class Pipeline(KerasJob):
             raise FileNotFoundError(
                 f"hdf5 file {path} does not exist - cannot read weights."
             )
-        old_layers = {layer.name: layer for layer in load_model(path).layers}
-        new_layers = {layer.name: layer for layer in fitable.layers}
-        for name, new_layer in new_layers.items():
-            if (
-                name in old_layers.keys()
-                and self.layer_is_valid(new_layer)
-                and new_layer.trainable
-            ):
-
-                old_layer = old_layers[name]
-                new_layer.set_weights(old_layer.get_weights())
-                new_layer.trainable = not self.exp_config["run_config"]["freeze_layers"]
-
+        fitable.load_weights(path, by_name=True, skip_mismatch=True)
         return fitable

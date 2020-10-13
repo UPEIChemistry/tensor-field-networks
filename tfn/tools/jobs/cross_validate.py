@@ -5,6 +5,7 @@ from sacred.run import Run
 from tensorflow.keras.models import Model
 
 from . import KerasJob
+from ..callbacks import CartesianMetrics
 
 
 class CrossValidate(KerasJob):
@@ -48,6 +49,11 @@ class CrossValidate(KerasJob):
         loss = fitable.evaluate(*data, verbose=0)
         if not isinstance(loss, list):
             loss = [loss]
+        loss.extend(
+            CartesianMetrics.structure_loss(
+                data[0][0], fitable.predict(data[0]), data[1][0]
+            )
+        )
         return loss
 
     @staticmethod

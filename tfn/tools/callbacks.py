@@ -99,7 +99,7 @@ class CartesianMetrics(Callback):
         """
         predicted_transition_states = self._get_prediction(data[0])
         ((atomic_nums, reactants, products), (true_transition_states,),) = data
-        for i, (z, r, p, ts_true, ts_pred) in enumerate(
+        for i, structures in enumerate(
             zip(
                 atomic_nums[: self.max_structures],
                 reactants[: self.max_structures],
@@ -108,7 +108,9 @@ class CartesianMetrics(Callback):
                 predicted_transition_states[: self.max_structures],
             )
         ):
-            yield i, z, r, p, ts_true, ts_pred
+            output = [np.expand_dims(a, 0) for a in structures]
+            output.insert(0, i)
+            yield output
 
     def loss(self, a, b):
         if a.shape != b.shape:
@@ -116,8 +118,7 @@ class CartesianMetrics(Callback):
         else:
             return np.mean(get_loss(self.model.loss)(a, b))
 
-    @staticmethod
-    def structure_loss(z, y_pred, y_true):
+    def structure_loss(self, z, y_pred, y_true):
         d = MaskedDistanceMatrix()
         one_hot = OneHot(np.max(z) + 1)(z)
         dist_matrix = np.abs(d([one_hot, y_pred]) - d([one_hot, y_true]))
@@ -136,23 +137,15 @@ class CartesianMetrics(Callback):
             m = (r + p) / 2
             # Make .xyz message lines
             losses = {
-                name: (
-                    a,
-                    self.loss(a, ts),
-                    *self.structure_loss(z, np.expand_dims(a, 0), ts),
-                )
+                name: (a, self.loss(a, ts), self.structure_loss(z, a, ts)[0])
                 for name, a in zip(
                     ["true", "predicted", "midpoint", "reactant", "product"],
                     [ts, pred, m, r, p],
                 )
             }
-            for name, (a, loss, mean, manhattan) in losses.items():
-                message = (
-                    f"loss: {loss} "
-                    f"-- mean_error: {mean} "
-                    f"-- manhattan_error: {manhattan}"
-                )
-                ndarrays_to_xyz(a, z, path / f"{name}/{i}_{name}.xyz", message)
+            for name, (a, loss, mean) in losses.items():
+                message = f"loss: {loss} " f"-- distance_error: {mean} "
+                ndarrays_to_xyz(a[0], z[0], path / f"{name}/{i}_{name}.xyz", message)
 
             # Add vector information if relevant
             if self._prediction_type == "vectors":
@@ -178,8 +171,8 @@ class CartesianMetrics(Callback):
 
     def _compute_metrics(self, data):
         z = data[0][0]
-        y_pred = data[1][0]
-        y_true = self.model.predict(data[0])
+        y_true = data[1][0]
+        y_pred = self.model.predict(data[0])
         return self.structure_loss(z, y_pred, y_true)
 
     def _writing(self, epoch):
@@ -221,8 +214,10 @@ class CartesianMetrics(Callback):
             if "vectors" not in [layer.name for layer in self.model.layers]:
                 self._prediction_type = "cartesians"
 
-            self.write_cartesians(self.train, self.path / "train/pre_training")
-            self.write_cartesians(self.validation, self.path / "val/pre_training")
+            self.write_cartesians(self.train, self.path / "pre_training" / "train")
+            self.write_cartesians(
+                self.validation, self.path / "pre_training" / "validation"
+            )
 
     def on_epoch_end(self, epoch, logs=None):
         if self.write_rate <= 0:
@@ -230,17 +225,18 @@ class CartesianMetrics(Callback):
 
         if self._output_type == "cartesians":
             self.compute_metrics(epoch, "train")
-            self.compute_metrics(epoch, "val")
+            self.compute_metrics(epoch, "validation")
 
         if self._writing(epoch):
             self.total_epochs = epoch
             if self.validation is not None and self.train is not None:
 
                 self.write_cartesians(
-                    self.validation, self.path / f"val/epoch_{epoch + 1}"
+                    self.train, self.path / "epochs" / f"epoch_{epoch + 1}" / "train",
                 )
                 self.write_cartesians(
-                    self.train, self.path / f"train/epoch_{epoch + 1}"
+                    self.validation,
+                    self.path / "epochs" / f"epoch_{epoch + 1}" / "validation",
                 )
 
     def on_train_end(self, logs=None):
