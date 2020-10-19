@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 
-from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.models import Model
 from tensorflow.keras.layers import InputLayer
 from tfn.layers.atomic_images import Unstandardization
 
@@ -28,6 +28,9 @@ class Pipeline(KerasJob):
 
             model_path = self._new_model_path(i)
             job.exp_config["run_config"]["model_path"] = model_path
+            job.exp_config["run_config"]["root_dir"] = (
+                self.exp_config["run_config"]["root_dir"] / f"pipeline_model_{i}"
+            )
             fitable = job._main(run, seed, fitable)
 
         return fitable

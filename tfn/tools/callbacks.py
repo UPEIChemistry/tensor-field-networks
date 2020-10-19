@@ -128,24 +128,21 @@ class CartesianMetrics(Callback):
             float(np.mean(np.sum(np.sum(dist_matrix, axis=-1), axis=-1), axis=0)),
         )
 
-    def write_cartesians(self, data: list, path: Path):
-        """
-        :param data: list. Of shape [[z, r, p], [true]]
-        :param path: Path object. Base path subdirectories and .xyz files will be written under.
-        """
-        for i, z, r, p, ts, pred in self._unwrap_data_lazily(data):
-            m = (r + p) / 2
+    def write_cartesians(
+        self, data: list, path: Path, write_static_structures: bool = False
+    ):
+        for i, z, r, p, true, pred in self._unwrap_data_lazily(data):
             # Make .xyz message lines
-            losses = {
-                name: (a, self.loss(a, ts), self.structure_loss(z, a, ts)[0])
-                for name, a in zip(
-                    ["true", "predicted", "midpoint", "reactant", "product"],
-                    [ts, pred, m, r, p],
-                )
-            }
-            for name, (a, loss, mean) in losses.items():
-                message = f"loss: {loss} " f"-- distance_error: {mean} "
-                ndarrays_to_xyz(a[0], z[0], path / f"{name}/{i}_{name}.xyz", message)
+            arrays = (
+                {"reactant": r, "product": p, "true": true, "predicted": pred}
+                if write_static_structures
+                else {"predicted": pred}
+            )
+            for name, array in arrays.items():
+                loss = self.loss(array, true)
+                error = self.structure_loss(z, array, true)[0] if name != "true" else 0
+                message = f"loss: {loss} " f"-- distance_error: {error} "
+                ndarrays_to_xyz(array[0], z[0], path / f"{i}_{name}.xyz", message)
 
             # Add vector information if relevant
             if self._prediction_type == "vectors":
@@ -160,14 +157,12 @@ class CartesianMetrics(Callback):
         else:
             data = self.validation
             file_writers = self.file_writers[2:]
-        metrics = {
-            name: metric
-            for name, metric in zip(
-                [f"mean_distance_error", f"manhattan_distance_error",],
-                self._compute_metrics(data),
-            )
-        }
-        self.write_metrics(metrics, epoch, file_writers, split)
+        self.write_metrics(
+            {"distance_error": self._compute_metrics(data)[0]},
+            epoch,
+            file_writers,
+            split,
+        )
 
     def _compute_metrics(self, data):
         z = data[0][0]
@@ -214,9 +209,15 @@ class CartesianMetrics(Callback):
             if "vectors" not in [layer.name for layer in self.model.layers]:
                 self._prediction_type = "cartesians"
 
-            self.write_cartesians(self.train, self.path / "pre_training" / "train")
             self.write_cartesians(
-                self.validation, self.path / "pre_training" / "validation"
+                self.train,
+                self.path / "pre_training" / "train",
+                write_static_structures=True,
+            )
+            self.write_cartesians(
+                self.validation,
+                self.path / "pre_training" / "validation",
+                write_static_structures=True,
             )
 
     def on_epoch_end(self, epoch, logs=None):

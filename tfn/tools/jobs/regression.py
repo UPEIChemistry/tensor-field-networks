@@ -26,7 +26,7 @@ class StructurePrediction(Regression):
     def _fit(
         self, run: Run, fitable: Model, data: tuple, callbacks: list = None,
     ) -> Model:
-        path = Path(run.observers[0].dir).absolute() / "cartesians"
+        path = self.exp_config["run_config"]["root_dir"] / "cartesians"
         return super()._fit(
             run,
             fitable,

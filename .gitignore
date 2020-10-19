@@ -114,3 +114,4 @@ mongo_db/
 *.sh
 *.out
 *.pickle
+*.csv

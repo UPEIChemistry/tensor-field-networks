@@ -9,6 +9,7 @@ from tfn.layers import (
     Preprocessing,
     RadialFactory,
     MolecularSelfInteraction,
+    MolecularActivation,
 )
 
 
@@ -177,7 +178,10 @@ class Builder(object):
         output = inputs
         for _ in range(self.num_final_si_layers):
             output = MolecularSelfInteraction(self.final_si_units)([one_hot] + output)
-        return MolecularSelfInteraction(output_dim)([one_hot] + output)
+            output = MolecularActivation()([one_hot] + output)
+        output = MolecularSelfInteraction(self.final_si_units)([one_hot] + output)
+        output = MolecularActivation()([one_hot] + output)
+        return output
 
     def get_model_output(self, point_cloud: list, inputs: list):
         raise NotImplementedError

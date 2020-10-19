@@ -169,7 +169,7 @@ class TestTSLoader:
         )
         train, val, test = loader.load_data(shuffle=False)
         assert test is None
-        assert len(val[0][0]) == 5
+        assert len(val[0][0]) == 7
 
 
 class TestSN2Loader:

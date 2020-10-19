@@ -4,11 +4,20 @@ import numpy as np
 from sacred.run import Run
 from tensorflow.keras.models import Model
 
-from . import KerasJob
+from . import KerasJob, config_defaults
 from ..callbacks import CartesianMetrics
 
 
 class CrossValidate(KerasJob):
+    @property
+    def config_defaults(self):
+        base = super().config_defaults
+        base["loader_config"][
+            "map_points"
+        ] = False  # Ensure reconstruction works properly
+        base["cm_config"] = copy(config_defaults.cm_config)
+        return base
+
     def _main(
         self,
         run: Run,
@@ -23,13 +32,35 @@ class CrossValidate(KerasJob):
         val_loss = []
         loader, folds = self._load_data(loader_config)
         print(f"**CROSS VALIDATING WITH {len(folds)} FOLDS**")
+        root = self.exp_config["run_config"]["root_dir"]
+
+        # Loop over folds
         for i in range(len(folds)):
             print(f"CROSS VALIDATING USING FOLD {i} AS VAL FOLD...")
             val = folds[i]
             train = self._combine_folds(folds[:i] + folds[i + 1 :])
             data = (train, val, None)  # No testing data
-            model = copy(fitable) or self._load_fitable(loader, fitable_config)
-            model = self._fit(run, model, data)
+            model = self._load_fitable(loader, fitable_config)
+
+            # Preload weights if necessary
+            if fitable is not None:
+                fitable.save_weights("./temp_weights.hdf5")
+                model.load_weights("./temp_weights.hdf5")
+
+            # fit the new model
+            self.exp_config["run_config"]["root_dir"] = root / f"cv_model_{i}"
+            model = self._fit(
+                run,
+                model,
+                data,
+                callbacks=[
+                    CartesianMetrics(
+                        self.exp_config["run_config"]["root_dir"] / "cartesians",
+                        *data,
+                        **self.exp_config["cm_config"],
+                    )
+                ],
+            )
 
             # [(loss, metric1, metric2, ...), ...]
             train_loss.append(self._evaluate_fold(model, train))
@@ -38,21 +69,21 @@ class CrossValidate(KerasJob):
         loss = np.array([train_loss, val_loss])  # (2, num_folds, ?)
         print(f"AVERAGE TRAIN LOSS ACROSS MODELS {np.mean(loss[0], axis=0).tolist()}")
         print(f"STANDARD DEVIATION: {np.std(loss[0], axis=0).tolist()}")
-        print(f"Final train losses: {train_loss}")
+        print("Final train losses: {}".format("\n".join(map(str, train_loss))))
 
         print(f"AVERAGE VAL LOSS ACROSS MODELS {np.mean(loss[1], axis=0).tolist()}")
         print(f"STANDARD DEVIATION: {np.std(loss[1], axis=0).tolist()}")
-        print(f"Final val losses: {val_loss}")
+        print("Final val losses: {}".format("\n".join(map(str, val_loss))))
         return model
 
     def _evaluate_fold(self, fitable: Model, data: list):
         loss = fitable.evaluate(*data, verbose=0)
         if not isinstance(loss, list):
             loss = [loss]
-        loss.extend(
-            CartesianMetrics.structure_loss(
+        loss.append(
+            CartesianMetrics("foobar").structure_loss(
                 data[0][0], fitable.predict(data[0]), data[1][0]
-            )
+            )[0]
         )
         return loss
 

@@ -1,6 +1,7 @@
 import socket
 from abc import ABCMeta, abstractmethod
 from copy import copy
+from pathlib import Path
 from typing import List
 
 from sacred import Experiment
@@ -125,6 +126,9 @@ class Job(metaclass=ABCMeta):
 
         @self.experiment.main
         def main(_run, _seed):
+            self.exp_config["run_config"]["root_dir"] = Path(
+                _run.observers[0].dir
+            ).absolute()
             self._main(_run, _seed, fitable, fitable_config, loader_config)
 
         self.experiment.run()

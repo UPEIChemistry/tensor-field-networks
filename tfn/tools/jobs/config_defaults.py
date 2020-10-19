@@ -24,6 +24,7 @@ run_config = {  # Defines kwargs used when running a job
     "save_verbosity": 0,
     "freeze_layers": False,
     "use_default_callbacks": True,
+    "root_dir": None,
 }
 loader_config = {  # Passed directly to loader classes
     "loader_type": "qm9_loader",
