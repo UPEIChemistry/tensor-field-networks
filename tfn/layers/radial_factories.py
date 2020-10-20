@@ -16,7 +16,7 @@ class RadialFactory(object):
         units: int = 32,
         activation: str = "ssp",
         l2_lambda: float = 0.0,
-        **kwargs
+        **kwargs,
     ):
         self.num_layers = num_layers
         self.units = units
@@ -32,6 +32,7 @@ class RadialFactory(object):
             )
         self.l2_lambda = l2_lambda
         self.sum_points = kwargs.pop("sum_points", False)
+        self.dispensed_radials = 0
 
     def get_radial(self, feature_dim, input_order=None, filter_order=None):
         raise NotImplementedError
@@ -70,15 +71,25 @@ class DenseRadialFactory(RadialFactory):
         """
         layers = [
             Radial(
-                self.units, self.activation, self.l2_lambda, sum_points=self.sum_points
+                self.units,
+                self.activation,
+                self.l2_lambda,
+                sum_points=self.sum_points,
+                name=f"radial_{self.dispensed_radials}/layer_{i}",
             )
-            for _ in range(self.num_layers)
+            for i in range(self.num_layers)
         ]
         layers.append(
             Radial(
-                feature_dim, self.activation, self.l2_lambda, sum_points=self.sum_points
+                feature_dim,
+                self.activation,
+                self.l2_lambda,
+                sum_points=self.sum_points,
+                name=f"radial_{self.dispensed_radials}/layer_{self.num_layers}",
             )
         )
+
+        self.dispensed_radials += 1
         return Sequential(layers)
 
     @classmethod
@@ -100,12 +111,12 @@ class Radial(Layer):
 
     def build(self, input_shape):
         self.kernel = self.add_weight(
-            name="radial_kernel",
+            name="kernel",
             shape=(input_shape[-1], self.units),
             regularizer=regularizers.l2(self.l2_lambda),
         )
         self.bias = self.add_weight(
-            name="radial_bias",
+            name="bias",
             shape=(self.units,),
             regularizer=regularizers.l2(self.l2_lambda),
         )

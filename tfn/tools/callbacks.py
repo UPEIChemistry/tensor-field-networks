@@ -118,7 +118,8 @@ class CartesianMetrics(Callback):
         else:
             return np.mean(get_loss(self.model.loss)(a, b))
 
-    def structure_loss(self, z, y_pred, y_true):
+    @staticmethod
+    def structure_loss(z, y_pred, y_true):
         d = MaskedDistanceMatrix()
         one_hot = OneHot(np.max(z) + 1)(z)
         dist_matrix = np.abs(d([one_hot, y_pred]) - d([one_hot, y_true]))
@@ -188,7 +189,7 @@ class CartesianMetrics(Callback):
         print(
             " -- ".join(
                 [
-                    f"{prefix}_{name}: {round(metric, 4)}"
+                    f"{prefix}_{name}: {round(metric, 8)}"
                     for name, metric in metrics.items()
                 ]
             )
@@ -246,7 +247,7 @@ class CartesianMetrics(Callback):
         ):
             if data is not None:
                 print(
-                    f"final {name} loss: {round(self.model.evaluate(*data, verbose=0), 4)}"
+                    f"final {name} loss: {round(self.model.evaluate(*data, verbose=0), 8)}"
                 )
                 if self._output_type == "cartesians":
                     self.compute_metrics(self.total_epochs + 1, name)

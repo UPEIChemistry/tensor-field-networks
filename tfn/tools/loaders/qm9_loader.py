@@ -10,16 +10,13 @@ from .data_loader import DataLoader
 class QM9DataDataLoader(DataLoader):
     @property
     def mu(self):
-        return np.array(
-            [
-                0.0,  # Dummy points
-                -13.61312172,  # Hydrogens
-                -1029.86312267,  # Carbons
-                -1485.30251237,  # Nitrogens
-                -2042.61123593,  # Oxygens
-                -2713.48485589,  # Fluorines
-            ]
-        ).reshape((-1, 1))
+        a = np.zeros((self.max_z, 1), dtype="float32")
+        a[1] = -13.61312172
+        a[6] = -1029.86312267
+        a[7] = -1485.30251237
+        a[8] = -2042.61123593
+        a[9] = -2713.48485589
+        return a
 
     @property
     def sigma(self):
@@ -56,7 +53,7 @@ class QM9DataDataLoader(DataLoader):
 
         if self.map_points:
             self.remap_points(atomic_nums)
-        self._max_z = np.max(atomic_nums) + 1
+        self._max_z = kwargs.get("custom_maxz", None) or np.max(atomic_nums) + 1
         if kwargs.get("return_maxz", False):
             return
 

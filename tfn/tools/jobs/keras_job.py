@@ -161,9 +161,7 @@ class KerasJob(Job):
         fitable.save(self.exp_config["run_config"]["model_path"])
         run.add_artifact(path)
 
-    def _new_model_path(self, i):
-        model_path = Path(
-            self.exp_config["run_config"]["model_path"]
-        ).parent / "source_model_{}.h5".format(i)
+    def _new_model_path(self, name: str):
+        model_path = Path(self.exp_config["run_config"]["model_path"]).parent / name
         self.exp_config["run_config"]["model_path"] = model_path
         return model_path

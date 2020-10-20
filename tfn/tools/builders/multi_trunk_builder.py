@@ -56,9 +56,11 @@ class DualTrunkBuilder(Builder):
 
     def get_final_output(self, one_hot: tf.Tensor, inputs: list, output_dim: int = 1):
         output = inputs
-        for _ in range(self.num_final_si_layers):
-            output = SelfInteraction(self.final_si_units)(output)
-        return SelfInteraction(output_dim)(output)
+        for i in range(self.num_final_si_layers):
+            output = SelfInteraction(self.final_si_units, name=f"si_{i}")(output)
+        return SelfInteraction(output_dim, name=f"si_{self.num_final_si_layers}")(
+            output
+        )
 
     def get_model_output(self, point_cloud: list, inputs: list):
         raise NotImplementedError

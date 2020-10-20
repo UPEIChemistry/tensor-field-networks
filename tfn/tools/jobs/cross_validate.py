@@ -81,7 +81,7 @@ class CrossValidate(KerasJob):
         if not isinstance(loss, list):
             loss = [loss]
         loss.append(
-            CartesianMetrics("foobar").structure_loss(
+            CartesianMetrics.structure_loss(
                 data[0][0], fitable.predict(data[0]), data[1][0]
             )[0]
         )

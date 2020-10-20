@@ -28,7 +28,7 @@ class GridSearch(KerasJob):
                 config.setdefault(k, v)
                 for k, v in self.job.exp_config["builder_config"].items()
             ]
-            self.job._new_model_path(i)
+            self.job._new_model_path(f"model_{i}.h5")
             self.job._main(run, seed, fitable_config=config)
             print(f"# Completed search on model {i} #\n")
             try:

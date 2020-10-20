@@ -31,7 +31,7 @@ class Builder(object):
         residual: bool = True,
         activation: str = "ssp",
         dynamic: bool = True,
-        **kwargs
+        **kwargs,
     ):
         self.max_z = max_z
         self.num_points = num_points
@@ -100,14 +100,13 @@ class Builder(object):
         ]
 
     def get_layers(self, **kwargs):
-        name = kwargs.pop("name", "conv")
         num_layers = kwargs.pop("num_layers", self.num_layers)
         si_units = kwargs.pop("si_units", self.si_units)
         clusters, skips = [], []
         for cluster_num, num_layers_in_cluster in enumerate(num_layers):
             skips.append(
                 MolecularConvolution(
-                    name="{}_cluster{}_skip".format(name, cluster_num),
+                    name=f"cluster{cluster_num}_skip",
                     radial_factory=self.radial_factory,
                     si_units=si_units[cluster_num],
                     output_orders=self.output_orders,
@@ -120,9 +119,7 @@ class Builder(object):
             for layer_num in range(num_layers_in_cluster):
                 layers.append(
                     MolecularConvolution(
-                        name="{}_cluster{}_layer{}".format(
-                            name, cluster_num, layer_num
-                        ),
+                        name=f"cluster_{cluster_num}/layer_{layer_num}",
                         radial_factory=self.radial_factory,
                         si_units=si_units[cluster_num],
                         output_orders=self.output_orders,
@@ -176,11 +173,17 @@ class Builder(object):
 
     def get_final_output(self, one_hot: tf.Tensor, inputs: list, output_dim: int = 1):
         output = inputs
-        for _ in range(self.num_final_si_layers):
-            output = MolecularSelfInteraction(self.final_si_units)([one_hot] + output)
-            output = MolecularActivation()([one_hot] + output)
-        output = MolecularSelfInteraction(self.final_si_units)([one_hot] + output)
-        output = MolecularActivation()([one_hot] + output)
+        for i in range(self.num_final_si_layers):
+            output = MolecularSelfInteraction(self.final_si_units, name=f"si_{i}")(
+                [one_hot] + output
+            )
+            output = MolecularActivation(name=f"ea_{i}")([one_hot] + output)
+        output = MolecularSelfInteraction(
+            self.final_si_units, name=f"si_{self.num_final_si_layers}"
+        )([one_hot] + output)
+        output = MolecularActivation(name=f"ea_{self.num_final_si_layers}")(
+            [one_hot] + output
+        )
         return output
 
     def get_model_output(self, point_cloud: list, inputs: list):

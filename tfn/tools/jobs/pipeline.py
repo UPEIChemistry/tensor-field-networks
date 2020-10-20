@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import InputLayer
 from tfn.layers.atomic_images import Unstandardization
 
@@ -26,7 +26,7 @@ class Pipeline(KerasJob):
             except (FileNotFoundError, TypeError) as _:
                 pass
 
-            model_path = self._new_model_path(i)
+            model_path = self._new_model_path(f"model_{i}.h5")
             job.exp_config["run_config"]["model_path"] = model_path
             job.exp_config["run_config"]["root_dir"] = (
                 self.exp_config["run_config"]["root_dir"] / f"pipeline_model_{i}"
@@ -53,5 +53,8 @@ class Pipeline(KerasJob):
             raise FileNotFoundError(
                 f"hdf5 file {path} does not exist - cannot read weights."
             )
+        temp_path = self.exp_config["run_config"]["root_dir"] / "temp_model.h5"
+        fitable.save(temp_path)
+        fitable = load_model(temp_path)
         fitable.load_weights(path, by_name=True, skip_mismatch=True)
         return fitable

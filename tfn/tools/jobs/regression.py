@@ -27,9 +27,12 @@ class StructurePrediction(Regression):
         self, run: Run, fitable: Model, data: tuple, callbacks: list = None,
     ) -> Model:
         path = self.exp_config["run_config"]["root_dir"] / "cartesians"
+        metric_data = data if self.exp_config["run_config"]["test"] else data[:2]
         return super()._fit(
             run,
             fitable,
             data,
-            callbacks=[CartesianMetrics(path, *data, **self.exp_config["cm_config"])],
+            callbacks=[
+                CartesianMetrics(path, *metric_data, **self.exp_config["cm_config"])
+            ],
         )
