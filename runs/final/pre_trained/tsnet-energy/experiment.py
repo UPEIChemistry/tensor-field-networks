@@ -1,16 +1,20 @@
 from pathlib import Path
-from tfn.tools.jobs import Pipeline, CrossValidate, StructurePrediction
+from tfn.tools.jobs import Pipeline, CrossValidate, Regression
 
 
 job = Pipeline(
     exp_config={"name": f"{Path(__file__).parent}", "seed": 1},
     jobs=[
-        StructurePrediction(
+        Regression(
             exp_config={
                 "name": f"{Path(__file__).parent} QM9",
                 "seed": 1,
                 "run_config": {"epochs": 50, "test": False,},
-                "loader_config": {"loader_type": "qm9_loader", "splitting": "90:10:0"},
+                "loader_config": {
+                    "loader_type": "qm9_loader",
+                    "splitting": "90:10:0",
+                    "map_points": True,
+                },
                 "builder_config": {"builder_type": "energy_builder"},
             }
         ),

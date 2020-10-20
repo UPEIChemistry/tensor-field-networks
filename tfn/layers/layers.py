@@ -627,7 +627,7 @@ class EquivariantActivation(Layer, EquivariantLayer):
 
     def get_config(self):
         base = super().get_config()
-        updates = dict(activation=self._activation)
+        updates = dict(activation=self.activation)
         return {**base, **updates}
 
     def compute_output_shape(self, input_shape):
