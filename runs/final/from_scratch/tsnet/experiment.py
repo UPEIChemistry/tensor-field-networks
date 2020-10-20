@@ -1,8 +1,6 @@
-import os
 from pathlib import Path
 from tfn.tools.jobs import CrossValidate
 
-os.environ["DATADIR"] = "/home/riley/dev/python/data"
 
 job = CrossValidate(
     exp_config={

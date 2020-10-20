@@ -13,7 +13,7 @@ job = Pipeline(
                 "loader_config": {
                     "loader_type": "qm9_loader",
                     "splitting": "90:10:0",
-                    "load_kwargs": {"modify_structures": True},
+                    "load_kwargs": {"modify_structures": True, "custom_maxz": 36},
                 },
                 "builder_config": {
                     "builder_type": "cartesian_builder",

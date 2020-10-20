@@ -13,7 +13,8 @@ job = Pipeline(
                 "loader_config": {
                     "loader_type": "qm9_loader",
                     "splitting": "90:10:0",
-                    "map_points": True,
+                    "map_points": False,
+                    "load_kwargs": {"custom_maxz": 36},
                 },
                 "builder_config": {"builder_type": "energy_builder"},
             }
