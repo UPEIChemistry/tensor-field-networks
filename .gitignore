@@ -115,3 +115,4 @@ mongo_db/
 *.out
 *.pickle
 *.csv
+*.png
