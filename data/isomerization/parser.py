@@ -88,7 +88,7 @@ def element_mapping():
 
 def parse():
     names = ['p_train', 'r_train', 'ts_train']
-    paths = [Path(f'{n}.xyz') for n in names]
+    paths = [Path(f'./{n}.xyz') for n in names]
 
     arrays = {}
     for path in paths:

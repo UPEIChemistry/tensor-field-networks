@@ -4,7 +4,7 @@ import os
 from math import ceil, isclose
 import numpy as np
 
-from tfn.tools.loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader
+from tfn.tools.loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader, IsomLoader
 
 
 class TestQM9Loader:
@@ -182,3 +182,10 @@ class TestSN2Loader:
         assert len(data[0][1]) == 2  # E, F
         assert len(loader.mu) == 2
         assert isclose(loader.sigma[1], 0.71, abs_tol=0.3)
+
+
+class TestIsomLoader:
+    def test_load_isomerization_data(self):
+        loader = IsomLoader('/home/riley/Documents/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f')
+        data = loader.load_data()
+        assert data

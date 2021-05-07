@@ -9,7 +9,7 @@ from .builders import (
     SiameseBuilder,
     ClassifierBuilder,
 )
-from .loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader
+from .loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader, IsomLoader
 from .loggers import SacredMetricLogger
 from .radials import get_radial_factory
 
@@ -40,6 +40,8 @@ def get_data_loader(
         return ISO17DataLoader(path=iso17_path, **kwargs)
     elif loader_type == "ts_loader":
         return TSLoader(path=ts_path, **kwargs)
+    elif loader_type == 'isom_loader':
+        return IsomLoader(**kwargs)
     elif loader_type == "sn2_loader":
         return SN2Loader(path=sn2_path, **kwargs)
     else:
