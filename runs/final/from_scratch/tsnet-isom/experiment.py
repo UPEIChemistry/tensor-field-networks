@@ -16,7 +16,7 @@ job = StructurePrediction(
         },
         "loader_config": {
             "loader_type": "isom_loader",
-            "path": "/home/riley/dev/python/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f",
+            "path": "/home/rjackson/dev/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f",
             "splitting": "75:20:5",
         },
         "builder_config": {
