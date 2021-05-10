@@ -4,7 +4,13 @@ import os
 from math import ceil, isclose
 import numpy as np
 
-from tfn.tools.loaders import ISO17DataLoader, QM9DataDataLoader, TSLoader, SN2Loader, IsomLoader
+from tfn.tools.loaders import (
+    ISO17DataLoader,
+    QM9DataDataLoader,
+    TSLoader,
+    SN2Loader,
+    IsomLoader,
+)
 
 
 class TestQM9Loader:
@@ -186,6 +192,8 @@ class TestSN2Loader:
 
 class TestIsomLoader:
     def test_load_isomerization_data(self):
-        loader = IsomLoader('/home/riley/Documents/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f')
+        loader = IsomLoader(
+            "/home/riley/Documents/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f"
+        )
         data = loader.load_data()
         assert data

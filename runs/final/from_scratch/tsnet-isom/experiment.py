@@ -1,18 +1,23 @@
 import os
 from pathlib import Path
-from tfn.tools.jobs import CrossValidate
+from tfn.tools.jobs import StructurePrediction
 
-os.environ['DATADIR'] = 'foobar'
-job = CrossValidate(
+os.environ["DATADIR"] = "foobar"
+job = StructurePrediction(
     exp_config={
         "name": f"{Path(__file__).parent}",
         "notes": "",
         "seed": 1,
-        "run_config": {"epochs": 1000, "test": False, "batch_size": 48},
+        "run_config": {
+            "epochs": 100,
+            "test": False,
+            "batch_size": 32,
+            "fit_verbosity": 1,
+        },
         "loader_config": {
             "loader_type": "isom_loader",
-            "path": '/home/riley/Documents/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f',
-            "splitting": 5,
+            "path": "/home/riley/dev/python/tensor-field-networks/data/isomerization/isomerization_dataset.hd5f",
+            "splitting": "75:20:5",
         },
         "builder_config": {
             "builder_type": "cartesian_builder",
