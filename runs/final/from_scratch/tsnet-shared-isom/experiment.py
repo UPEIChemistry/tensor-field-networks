@@ -19,7 +19,7 @@ job = StructurePrediction(
         },
         "builder_config": {
             "builder_type": "cartesian_builder",
-            "radial_factory": "multi_dense",
+            "radial_factory": "single_dense",
             "prediction_type": "cartesians",
             "output_type": "cartesians",
         },

@@ -16,5 +16,5 @@ setup(
         "scikit-learn",
         "h5py",
     ],
-    extras_require={"tests": ["pytest"]},
+    extras_require={"dev": ["pytest", "black"]},
 )
