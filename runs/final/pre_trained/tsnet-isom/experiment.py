@@ -9,7 +9,7 @@ job = Pipeline(
             exp_config={
                 "name": f"{Path(__file__).parent} QM9",
                 "seed": 1,
-                "run_config": {"epochs": 50, "test": False,},
+                "run_config": {"epochs": 100, "test": False,},
                 "loader_config": {
                     "loader_type": "isom_loader",
                     "path": "/home/rjackson/dev/tensor-field-networks/data/isomerization/isomerization_dataset"

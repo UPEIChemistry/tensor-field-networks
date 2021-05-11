@@ -10,7 +10,7 @@ job = StructurePrediction(
         "seed": 1,
         "run_config": {
             "epochs": 100,
-            "test": False,
+            "test": True,
             "batch_size": 32,
             "fit_verbosity": 1,
         },
