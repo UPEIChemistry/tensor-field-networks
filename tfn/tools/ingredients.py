@@ -24,26 +24,21 @@ def get_data_loader(
 ):
     """
     :param loader_type: str. Defaults to 'qm9_loader'. Used to specify which loader type is
-        being used. Supported identifiers: 'qm9_loader', 'iso17_loader', iso17_force_loader',
-            'ts_loader'
+        being used. Supported identifiers: 'qm9_loader', 'iso17_loader', 'ts_loader',
+        'isom_loader', 'sn2_loader'
     :param kwargs: kwargs passed directly to Loader classes
     :return: DataLoader object specified by `loader_type`
     """
-    data_dir = os.environ["DATADIR"]
-    qm9_path = data_dir + "/QM9_data_original.hdf5"
-    iso17_path = data_dir + "/iso17.hdf5"
-    ts_path = data_dir + "/ts.hdf5"
-    sn2_path = data_dir + "/sn2_reactions.npz"
     if loader_type == "qm9_loader":
-        return QM9DataDataLoader(path=qm9_path, **kwargs)
+        return QM9DataDataLoader(**kwargs)
     elif loader_type == "iso17_loader":
-        return ISO17DataLoader(path=iso17_path, **kwargs)
+        return ISO17DataLoader(**kwargs)
     elif loader_type == "ts_loader":
-        return TSLoader(path=ts_path, **kwargs)
+        return TSLoader(**kwargs)
     elif loader_type == "isom_loader":
         return IsomLoader(**kwargs)
     elif loader_type == "sn2_loader":
-        return SN2Loader(path=sn2_path, **kwargs)
+        return SN2Loader(**kwargs)
     else:
         raise ValueError(
             "arg `loader_type` had value: {} which is not supported. "
