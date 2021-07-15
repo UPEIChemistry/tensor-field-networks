@@ -9,6 +9,7 @@ job = CrossValidate(
         "seed": 1,
         "run_config": {"epochs": 1000, "test": False, "batch_size": 48},
         "loader_config": {
+            "path": "../../../../data/ts.hdf5"
             "loader_type": "ts_loader",
             "splitting": 5,
             "load_kwargs": {"remove_noise": True, "shuffle": False},
